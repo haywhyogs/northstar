@@ -58,4 +58,4 @@ Diagrams: [docs/architecture](docs/architecture/README.md) · Decisions: [docs/d
 About $10 total. Free tiers first, AKS is short-lived, and one platform is applied. See [ADR-0001](docs/decisions/0001-budget-constrained-azure-design.md) and [ADR-0004](docs/decisions/0004-environment-strategy.md).
 
 ## Project status
-Task-by-task tracker with next steps: **[PROGRESS.md](PROGRESS.md)**
+🚧 In progress: Day 1 of 7 (foundations: repository, tooling, Azure guardrails).

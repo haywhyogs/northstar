@@ -58,6 +58,18 @@ When you `git push`, GitHub must know **who you are**. There are two ways to pro
 
 GitHub won't let a PR's author approve their own PR. That's exactly why a second identity makes the review genuine.
 
+### Two more fundamentals from setup
+- **"Authenticity of host can't be established… continue?"** The first SSH connection is GitHub proving **its** identity **to you**
+  (the reverse direction). Saying `yes` stores GitHub's fingerprint in `~/.ssh/known_hosts`. If it ever changes unexpectedly,
+  SSH warns you, which protects against an attacker pretending to be GitHub (a "man-in-the-middle").
+  The careful habit is to compare the fingerprint with [GitHub's published fingerprints](https://docs.github.com/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints).
+- **`git remote -v` shows two lines (fetch and push):** the address Git **downloads** from and the one it **uploads** to.
+  Usually they're the same. `origin` is just the nickname for that address.
+
+### ✍️ My answer: which key goes to GitHub? (2026-11-12)
+> The **public** key goes to GitHub. It's harmless if anyone sees it, because authentication also needs the private half,
+> which never leaves my computer. **✅ Correct.**
+
 ## ✍️ In my own words (fill this in yourself)
 
 1. Why does the outbox row have to be saved in the **same transaction** as the debit?
