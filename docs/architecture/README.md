@@ -92,7 +92,47 @@ need their Premium tiers (hundreds of USD per month). They stay on public endpoi
 
 A compromised pipeline can't read customer data. A compromised pod can't change infrastructure. A customer can't see another customer's account.
 
-## 4. Payment flow (the reliability scenario)
+## 4. Payments data model
+
+Money is stored as whole **cents** (`BIGINT`). Source: `apps/payments/backend/migrations/versions/`.
+
+```mermaid
+erDiagram
+    customers ||--o{ accounts : owns
+    accounts ||--o{ payments : "sends (from)"
+    accounts ||--o{ payments : "receives (to)"
+    payments ||--|{ ledger_entries : "records money movement"
+    accounts ||--o{ ledger_entries : "is moved on"
+    payments ||--o{ outbox_messages : "announces"
+
+    customers { uuid id PK
+      nvarchar email UK
+      nvarchar password_hash }
+    accounts { uuid id PK
+      nvarchar account_number UK
+      bigint opening_balance_cents
+      bigint balance_cents "CHECK >= 0" }
+    payments { uuid id PK
+      bigint amount_cents "CHECK > 0"
+      nvarchar status "pending|processing|completed|failed"
+      nvarchar idempotency_key "UNIQUE per sender"
+      nvarchar correlation_id }
+    ledger_entries { bigint id PK
+      nvarchar entry_type "debit|credit, UNIQUE per payment"
+      bigint amount_cents }
+    outbox_messages { uuid id PK
+      nvarchar payload "JSON"
+      datetime2 published_at "NULL = not sent yet" }
+```
+
+| Rule (enforced by the database) | Protects against |
+|---|---|
+| `ck_accounts_balance_non_negative` | Overdrafts, even if application code has a bug |
+| `uq_payments_sender_idempotency_key` | **Double-click** creating two payments and two debits |
+| `uq_ledger_entries_payment_entry_type` | **Duplicate Service Bus message** crediting twice |
+| Reconciliation: `opening + credits − debits = balance` | Silent drift between the ledger and balances |
+
+## 5. Payment flow (the reliability scenario)
 
 ```mermaid
 sequenceDiagram

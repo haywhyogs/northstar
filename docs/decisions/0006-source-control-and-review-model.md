@@ -21,7 +21,7 @@ GitHub doesn't let the author of a pull request approve their own PR, so a secon
 - **Branching:** short-lived `feature/<description>` branches, squash-merged into `main`.
 
 ## Alternatives considered
-- **HTTPS with a personal access token or the `gh` credential helper**: also valid. SSH was chosen to learn key-based authentication, which is also used for servers.
+- **HTTPS with a personal access token or the `gh` credential helper**: also valid. SSH was chosen because keys never expire into a stored token and are the same mechanism used for servers.
 - **A GitHub organization with teams and CODEOWNERS**: more realistic for many teams. Possible later; not needed to prove review.
 
 ## Consequences
