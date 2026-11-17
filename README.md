@@ -52,10 +52,20 @@ Diagrams: [docs/architecture](docs/architecture/README.md) · Decisions: [docs/d
 | `apps/fx-rates/` | Markets team | Second workload, onboarded via the guide |
 | `tests/smoke/` | Platform | Post-deployment smoke tests |
 | `scripts/` | Platform | Helper scripts |
-| `docs/` | Everyone | Architecture, decisions, onboarding, runbooks, incidents, learning notes |
+| `docs/` | Everyone | Architecture, decisions, onboarding, runbooks, incident reports |
 
 ## Budget
 About $10 total. Free tiers first, AKS is short-lived, and one platform is applied. See [ADR-0001](docs/decisions/0001-budget-constrained-azure-design.md) and [ADR-0004](docs/decisions/0004-environment-strategy.md).
 
 ## Project status
-🚧 In progress: Day 1 of 7 (foundations: repository, tooling, Azure guardrails).
+🚧 In progress.
+
+| Area | Status |
+|---|---|
+| Repository, review model, Azure cost guardrails | ✅ |
+| Payments data layer (schema, migrations, demo data) and local stack | ✅ |
+| Payments API, dispatcher, worker, frontend, containers | ⬜ |
+| Terraform foundation, AKS, private connectivity | ⬜ |
+| CI/CD (OIDC, checks, image pipeline, approvals) | ⬜ |
+| Monitoring, alerting, incident drill | ⬜ |
+| Second-team onboarding | ⬜ |

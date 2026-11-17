@@ -21,17 +21,17 @@ identity and observability.
 | Azure SQL private connectivity | **Private endpoint** + private DNS zone. Public network access disabled once the pipeline no longer needs it |
 | Networking | One VNet with an AKS subnet and a private endpoint subnet (VNets themselves are free; private endpoints cost about a cent an hour each, so they're created and destroyed with the platform) |
 | Observability | Log Analytics + workspace-based Application Insights with a **daily ingestion cap** |
-| Cost guardrails | Azure budget alerts at $5 and $10, created on Day 1, before any other resource |
+| Cost guardrails | Azure budget alerts at $5 and $10, created before any other resource |
 
-Every price is to be verified in the Azure Pricing Calculator (Canada Central) before provisioning on Day 4.
+Every price is to be verified in the Azure Pricing Calculator (Canada Central) before provisioning.
 
 ## Alternatives considered
 - **Premium tiers with private endpoints everywhere**: closest to a real bank, but roughly 100× over budget.
-- **Local Kubernetes only (kind/minikube)**: free, but loses the AKS and Azure identity learning outcomes.
-- **Keep AKS running 24/7**: simpler, but adds roughly $1–2 per day for no learning benefit.
+- **Local Kubernetes only (kind/minikube)**: free, but can't demonstrate AKS, ACR pulls or Azure workload identity.
+- **Keep AKS running 24/7**: simpler, but adds roughly $1–2 per day while it sits idle.
 
 ## Consequences
-- ✅ Learning outcomes are preserved at roughly $3–10.
+- ✅ Every platform capability is still demonstrated, at roughly $3–10 in total.
 - ✅ Recreating AKS each session is a real-world test that our Terraform is repeatable.
 - ⚠️ Service Bus and ACR are reachable over the public internet, protected by identity rather than network isolation.
 - ⚠️ Service Bus Basic has no built-in duplicate detection. That's fine, because our database idempotency is the real protection (ADR-0002).

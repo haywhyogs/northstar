@@ -15,19 +15,19 @@ Two full copies of the platform (two AKS clusters, two SQL servers and so on) ru
 3. **Application environments are Kubernetes namespaces** on that cluster: `<app>-dev` and `<app>-staging`.
    Each app environment gets its own database, queue and workload identity. Deploying to `*-staging` requires a
    **manual approval** from the reviewer account.
-4. **Day 7 timeboxed proof (if on schedule):** `terraform apply` `environments/staging` as a fully separate platform,
+4. **Timeboxed staging proof:** `terraform apply` `environments/staging` as a fully separate platform,
    deploy the **same image SHA**, run smoke tests, capture evidence, then `terraform destroy`.
    Estimated cost: under $1 for under an hour (one small node, load balancer, a few private endpoints, free-offer SQL).
    To verify in the Pricing Calculator, and check the regional vCPU quota allows two clusters.
 5. **Production** is described in docs as "staging, but in its own subscription with stricter policies". It's not built.
 
 ## Alternatives considered
-- **Two platforms running all week**: true isolation, but roughly double the cost for no extra learning.
+- **Two platforms running all week**: true isolation, but roughly double the cost for no additional evidence.
 - **Namespaces only, no separate staging apply**: cheapest, but never proves the Terraform environment pattern really works.
 
 ## Consequences
 - ✅ Daily cost stays at one small platform.
 - ✅ The approval gate and promotion of the same image are demonstrated every day.
-- ✅ The Day 7 proof shows "same modules + different variables = an identical, isolated environment", which is the core claim of a platform.
+- ✅ The staging proof shows "same modules + different variables = an identical, isolated environment", which is the core claim of a platform.
 - ⚠️ `dev` and `staging` namespaces share one node and one cluster. A misbehaving dev workload could affect staging.
   Mitigated with resource limits and separate identities; real production would never share a cluster with dev.

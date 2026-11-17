@@ -1,6 +1,6 @@
 # Onboarding a new application team to Northstar
 
-> Draft outline. Written properly on Day 7 and tested by onboarding the Markets team's `fx-rates` app **using only this guide**.
+> Draft outline. Completed once the platform modules and pipelines exist, then validated by onboarding the Markets team's `fx-rates` app **using only this guide**.
 
 1. **What the platform gives you**: cluster, registry, identity, networking, monitoring, pipeline
 2. **Where the reusable Terraform modules live**: `infrastructure/modules/` (the `workload` module onboards your app)

@@ -4,8 +4,10 @@
 !.vscode/extensions.json
 .idea/
 
+# Local-only: personal tracker, assistant instructions, learning notes (never published)
 PROGRESS.md
 CLAUDE.md
+docs/learning-notes/
 # Secrets and local env — never commit
 .env
 .env.*

@@ -1,0 +1,70 @@
+# Local development stack for the Payments team.
+# Runs the two backing services our code needs, on your laptop, for free:
+#   - sqlserver  : SQL Server (stands in for Azure SQL Database)
+#   - db-init    : one-off task that creates the `northstar` database, then exits
+#   - servicebus : Microsoft's official Service Bus emulator (stands in for Azure Service Bus)
+#
+# Usage (from apps/payments/):  docker compose up -d   ·   docker compose ps   ·   docker compose down
+# Secrets come from .env (git-ignored). Copy .env.example to .env first.
+# Emulator setup follows: https://learn.microsoft.com/azure/service-bus-messaging/test-locally-with-service-bus-emulator
+
+name: northstar-payments
+
+services:
+  sqlserver:
+    # Pinned version (never just "latest") so everyone gets the same database engine.
+    image: mcr.microsoft.com/mssql/server:2022-CU28-ubuntu-22.04
+    # SQL Server images are built for Intel (amd64) only. On Apple Silicon, Docker Desktop runs them via Rosetta.
+    platform: linux/amd64
+    environment:
+      ACCEPT_EULA: ${ACCEPT_EULA:?Set ACCEPT_EULA in .env}
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in .env}
+      MSSQL_PID: Developer # free edition, licensed for development/testing only
+    ports:
+      # host:container. Bound to 127.0.0.1 so ONLY your Mac can connect, not other devices on your Wi-Fi.
+      - "127.0.0.1:1433:1433"
+    volumes:
+      # Named volume: database files survive `docker compose down` (wipe them with `down -v`).
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      # "Healthy" only once SQL Server actually answers a query, not merely when the container has started.
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -b -Q 'SELECT 1' -o /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  db-init:
+    # One-off job: create our application database if it doesn't exist, then exit.
+    # (In Kubernetes this pattern becomes a Job.)
+    image: mcr.microsoft.com/mssql/server:2022-CU28-ubuntu-22.04
+    platform: linux/amd64
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    environment:
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in .env}
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P "$$MSSQL_SA_PASSWORD" -C -b -Q "IF DB_ID('northstar') IS NULL CREATE DATABASE northstar;" && echo "northstar database ready"
+    restart: "no"
+
+  servicebus:
+    image: mcr.microsoft.com/azure-messaging/servicebus-emulator:2.0.1
+    depends_on:
+      sqlserver:
+        condition: service_healthy # the emulator stores its own state in SQL Server
+    environment:
+      SQL_SERVER: sqlserver # service name = hostname on the Compose network
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in .env}
+      ACCEPT_EULA: ${ACCEPT_EULA:?Set ACCEPT_EULA in .env}
+      EMULATOR_HTTP_PORT: 5300
+    ports:
+      - "127.0.0.1:5672:5672" # AMQP: how our code sends/receives messages
+      - "127.0.0.1:5300:5300" # management + health check API
+    volumes:
+      # Our queue definition (the "payments" queue). Read at start-up only, so restart after editing.
+      - ./local/servicebus-config.json:/ServiceBus_Emulator/ConfigFiles/Config.json
+
+volumes:
+  sqlserver-data:

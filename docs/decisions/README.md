@@ -1,7 +1,7 @@
 # Architecture Decision Records (ADRs)
 
 An ADR is a short note that records **one important decision**: the context, what we chose, the alternatives and the consequences.
-It lets anyone (including an interviewer) see *why* the platform looks the way it does.
+It lets anyone (a new engineer, an auditor, a reviewer) see *why* the platform looks the way it does.
 
 | # | Decision | Status |
 |---|---|---|
