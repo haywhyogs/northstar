@@ -87,9 +87,7 @@ class Payment(Base):
     __table_args__ = (
         CheckConstraint("amount_cents > 0", name="amount_positive"),
         CheckConstraint("from_account_id <> to_account_id", name="different_accounts"),
-        CheckConstraint(
-            "status IN ('pending', 'processing', 'completed', 'failed')", name="status_valid"
-        ),
+        CheckConstraint("status IN ('pending', 'processing', 'completed', 'failed')", name="status_valid"),
         # Guard #1: a double-clicked "Send" carries the same key, so the second insert is refused.
         UniqueConstraint("from_account_id", "idempotency_key", name="uq_payments_sender_idempotency_key"),
     )

@@ -8,10 +8,15 @@ dependencies = [
     "alembic>=1.14",             # database migrations ("renovation instructions")
     "pyodbc>=5.2",               # Python ↔ ODBC Driver 18 ↔ SQL Server
     "pydantic-settings>=2.6",    # reads configuration from environment variables / .env
+    "fastapi>=0.163.2",
+    "uvicorn[standard]>=0.54.0",
+    "pyjwt>=2.15.1",
+    "azure-servicebus>=7.15.0",
 ]
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "pytest>=8.3",
     "ruff>=0.8",
 ]
@@ -26,3 +31,11 @@ packages = ["src/northstar_payments"]
 [tool.ruff]
 line-length = 110
 target-version = "py312"
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's dependency-injection style (`x = Depends(...)`) is intended, not a bug.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Header"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["integration: needs the local SQL Server (docker compose up -d) with migrations applied"]
