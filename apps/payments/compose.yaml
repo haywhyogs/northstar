@@ -5,10 +5,29 @@
 #   - servicebus : Microsoft's official Service Bus emulator (stands in for Azure Service Bus)
 #
 # Usage (from apps/payments/):  docker compose up -d   ·   docker compose ps   ·   docker compose down
+# Whole app in containers too (our 2 images):  docker compose --profile app up -d --build
 # Secrets come from .env (git-ignored). Copy .env.example to .env first.
 # Emulator setup follows: https://learn.microsoft.com/azure/service-bus-messaging/test-locally-with-service-bus-emulator
 
 name: northstar-payments
+
+# Shared settings for every container built from the backend image (ADR-0003: one image, several roles).
+x-backend: &backend
+  profiles: ["app"]
+  # Long-running containers restart if they crash (Kubernetes Deployments do the same automatically).
+  restart: unless-stopped
+  build: ./backend
+  image: northstar-payments-backend:local
+  env_file: .env # secrets stay in the git-ignored .env
+  environment:
+    # Inside the Compose network, services reach each other by service name, not localhost.
+    DB_SERVER: sqlserver
+    SERVICEBUS_CONNECTION_STRING: "Endpoint=sb://servicebus;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+    servicebus:
+      condition: service_started
 
 services:
   sqlserver:
@@ -65,6 +84,50 @@ services:
     volumes:
       # Our queue definition (the "payments" queue). Read at start-up only, so restart after editing.
       - ./local/servicebus-config.json:/ServiceBus_Emulator/ConfigFiles/Config.json
+
+  # ---------- Our app (profile "app"): 2 images -> 5 containers ----------
+  migrate:
+    <<: *backend
+    command: ["alembic", "upgrade", "head"] # one-off, like a Kubernetes Job
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    restart: "no"
+
+  api:
+    <<: *backend
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  dispatcher:
+    <<: *backend
+    command: ["python", "-m", "northstar_payments.dispatcher"]
+
+  worker:
+    <<: *backend
+    command: ["python", "-m", "northstar_payments.worker"]
+
+  web:
+    profiles: ["app"]
+    restart: unless-stopped
+    build: ./web
+    image: northstar-payments-web:local
+    environment:
+      API_UPSTREAM: api:8000
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+        # nginx looks up the API's address once, at start-up. When api is recreated it gets a new address,
+        # so restart web with it. (In Kubernetes a Service has a stable address, so this isn't needed there.)
+        restart: true
 
 volumes:
   sqlserver-data:

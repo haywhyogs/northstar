@@ -37,6 +37,19 @@ class Settings(BaseSettings):
     # Local demo only: the shared login password for seeded synthetic customers (stored hashed).
     demo_customer_password: SecretStr | None = None
 
+    # Customer login tokens (ADR-0007). Locally from .env; in Azure from Key Vault via workload identity.
+    jwt_signing_key: SecretStr | None = None
+    jwt_ttl_minutes: int = 15
+
+    log_level: str = "INFO"
+
+    # Service Bus. Locally: the emulator's documented connection string (not a secret).
+    # In Azure: no connection string; the workload identity is used instead (added with the AKS platform).
+    servicebus_connection_string: SecretStr | None = None
+    servicebus_queue: str = "payments"
+    dispatcher_batch_size: int = 20
+    dispatcher_idle_seconds: float = 1.0
+
 
 @lru_cache
 def get_settings() -> Settings:
