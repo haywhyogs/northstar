@@ -17,3 +17,11 @@ output "servicebus_namespace" {
 output "sql_server_fqdn" {
   value = module.database.fqdn
 }
+
+output "aks_name" {
+  value = module.aks.name
+}
+
+output "aks_oidc_issuer_url" {
+  value = module.aks.oidc_issuer_url
+}

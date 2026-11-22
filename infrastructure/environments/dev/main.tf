@@ -89,3 +89,15 @@ module "database" {
   entra_admin_object_id = data.azurerm_client_config.current.object_id # production: an Entra ID group
   tags                  = local.tags
 }
+
+module "aks" {
+  source = "git::https://github.com/haywhyogs/northstar.git//infrastructure/modules/aks?ref=modules/aks/v1.0.0"
+
+  name                = local.name
+  resource_group_name = azurerm_resource_group.this.name
+  location            = local.location
+  subnet_id           = module.networking.aks_subnet_id
+  acr_id              = module.registry.id
+  admin_object_ids    = [data.azurerm_client_config.current.object_id] # production: an Entra ID group
+  tags                = local.tags
+}

@@ -42,6 +42,8 @@ tfplan
 crash.log
 *.tfvars
 !*.tfvars.example
+# Lock files belong to root folders (bootstrap, environments), not to reusable modules
+infrastructure/modules/**/.terraform.lock.hcl
 override.tf
 override.tf.json
 *_override.tf
