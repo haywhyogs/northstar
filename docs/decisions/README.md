@@ -13,5 +13,6 @@ It lets anyone (a new engineer, an auditor, a reviewer) see *why* the platform l
 | [0006](0006-source-control-and-review-model.md) | Source control, authentication and two-account review model | Accepted |
 | [0007](0007-customer-session-tokens.md) | Customer sessions use short-lived signed tokens (JWT) | Accepted |
 | [0008](0008-terraform-remote-state.md) | Terraform remote state in Azure Storage, created by a bootstrap configuration | Accepted |
+| [0009](0009-module-versioning-with-git-tags.md) | Version Terraform modules with Git tags; environments pin a tag | Accepted |
 
 Template: copy [0000-template.md](0000-template.md).
