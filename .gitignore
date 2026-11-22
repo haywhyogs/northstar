@@ -15,6 +15,9 @@ docs/learning-notes/
 *.pem
 *.key
 
+# Local log files
+*.log
+
 # Python
 __pycache__/
 *.py[cod]
@@ -28,6 +31,7 @@ htmlcov/
 # Node
 node_modules/
 dist/
+.vite/
 
 # Terraform — state can contain secrets; it lives in Azure Storage, not Git
 .terraform/
