@@ -7,7 +7,9 @@ resource "azurerm_log_analytics_workspace" "this" {
   sku                 = "PerGB2018"
   retention_in_days   = var.retention_days
   daily_quota_gb      = var.daily_quota_gb
-  tags                = var.tags
+  # Entra ID only (no shared workspace keys), like Service Bus and the state storage.
+  local_authentication_enabled = var.local_authentication_enabled
+  tags                         = var.tags
 }
 
 resource "azurerm_application_insights" "this" {
