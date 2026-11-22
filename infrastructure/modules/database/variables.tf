@@ -24,3 +24,18 @@ variable "entra_admin_object_id" {
 variable "tags" {
   type = map(string)
 }
+
+variable "private_endpoint" {
+  description = "Subnet and private DNS zone (privatelink.database.windows.net) for the server's private endpoint. null = none."
+  type = object({
+    subnet_id   = string
+    dns_zone_id = string
+  })
+  default = null
+}
+
+variable "operator_ip" {
+  description = "Your public IP, set only during setup tasks (e.g. granting database access). null = no public access."
+  type        = string
+  default     = null
+}
