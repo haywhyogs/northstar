@@ -40,7 +40,7 @@ resource "azurerm_resource_group" "this" {
 }
 
 module "networking" {
-  source = "git::https://github.com/haywhyogs/northstar.git//infrastructure/modules/networking?ref=modules/networking/v1.0.0"
+  source = "git::https://github.com/haywhyogs/northstar.git//infrastructure/modules/networking?ref=modules/networking/v1.1.0"
 
   name                            = local.name
   resource_group_name             = azurerm_resource_group.this.name
@@ -80,14 +80,19 @@ module "messaging" {
 }
 
 module "database" {
-  source = "git::https://github.com/haywhyogs/northstar.git//infrastructure/modules/database?ref=modules/database/v1.0.0"
+  source = "git::https://github.com/haywhyogs/northstar.git//infrastructure/modules/database?ref=modules/database/v1.1.0"
 
   name                  = "sql-${local.name}-${random_string.suffix.result}"
   resource_group_name   = azurerm_resource_group.this.name
   location              = local.location
   entra_admin_login     = "northstar-sql-admin"
   entra_admin_object_id = data.azurerm_client_config.current.object_id # production: an Entra ID group
-  tags                  = local.tags
+  operator_ip           = var.operator_ip
+  private_endpoint = {
+    subnet_id   = module.networking.private_endpoints_subnet_id
+    dns_zone_id = module.networking.private_dns_zone_ids["sql"]
+  }
+  tags = local.tags
 }
 
 module "aks" {
@@ -100,4 +105,23 @@ module "aks" {
   acr_id              = module.registry.id
   admin_object_ids    = [data.azurerm_client_config.current.object_id] # production: an Entra ID group
   tags                = local.tags
+}
+
+# The payments team's slice of the platform (ADR-0010). A new team = one more block like this.
+module "payments" {
+  source = "git::https://github.com/haywhyogs/northstar.git//infrastructure/modules/workload?ref=modules/workload/v1.0.0"
+
+  app                        = "payments"
+  environment                = local.environment
+  resource_group_name        = azurerm_resource_group.this.name
+  location                   = local.location
+  oidc_issuer_url            = module.aks.oidc_issuer_url
+  sql_server_id              = module.database.id
+  servicebus_namespace_id    = module.messaging.id
+  key_vault_name             = "kv-payments-dev-${random_string.suffix.result}"
+  private_endpoint_subnet_id = module.networking.private_endpoints_subnet_id
+  key_vault_dns_zone_id      = module.networking.private_dns_zone_ids["key_vault"]
+  operator_object_id         = data.azurerm_client_config.current.object_id
+  operator_ip                = var.operator_ip
+  tags                       = local.tags
 }
