@@ -52,7 +52,7 @@ module "networking" {
 }
 
 module "monitoring" {
-  source = "git::https://github.com/haywhyogs/northstar.git//infrastructure/modules/monitoring?ref=modules/monitoring/v1.0.0"
+  source = "git::https://github.com/haywhyogs/northstar.git//infrastructure/modules/monitoring?ref=modules/monitoring/v1.1.0"
 
   name                = local.name
   resource_group_name = azurerm_resource_group.this.name
