@@ -25,3 +25,15 @@ output "aks_name" {
 output "aks_oidc_issuer_url" {
   value = module.aks.oidc_issuer_url
 }
+
+output "payments_identity_client_id" {
+  value = module.payments.identity_client_id
+}
+
+output "payments_key_vault_name" {
+  value = module.payments.key_vault_name
+}
+
+output "payments_database_grant_sql" {
+  value = module.payments.database_grant_sql
+}
