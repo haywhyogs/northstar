@@ -74,3 +74,31 @@ resource "azurerm_subnet_network_security_group_association" "private_endpoints"
   subnet_id                 = azurerm_subnet.private_endpoints.id
   network_security_group_id = azurerm_network_security_group.private_endpoints.id
 }
+
+# Private DNS zones ("private phone books"). Inside this VNet, a service's normal name
+# (e.g. sql-x.database.windows.net) resolves to its private endpoint's IP instead of the public one.
+# Zone names are fixed by Microsoft for each service.
+locals {
+  private_dns_zones = {
+    sql       = "privatelink.database.windows.net"
+    key_vault = "privatelink.vaultcore.azure.net"
+  }
+}
+
+resource "azurerm_private_dns_zone" "this" {
+  for_each            = local.private_dns_zones
+  name                = each.value
+  resource_group_name = var.resource_group_name
+  tags                = var.tags
+}
+
+# A zone only answers for VNets linked to it.
+resource "azurerm_private_dns_zone_virtual_network_link" "this" {
+  for_each              = local.private_dns_zones
+  name                  = "link-${var.name}"
+  resource_group_name   = var.resource_group_name
+  private_dns_zone_name = azurerm_private_dns_zone.this[each.key].name
+  virtual_network_id    = azurerm_virtual_network.this.id
+  registration_enabled  = false
+  tags                  = var.tags
+}
