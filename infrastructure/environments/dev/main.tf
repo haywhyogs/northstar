@@ -103,6 +103,7 @@ module "aks" {
   location            = local.location
   subnet_id           = module.networking.aks_subnet_id
   acr_id              = module.registry.id
+  vm_size             = "Standard_D2as_v7"                             # B2ms isn't allowed for AKS in this subscription in canadacentral
   admin_object_ids    = [data.azurerm_client_config.current.object_id] # production: an Entra ID group
   tags                = local.tags
 }
