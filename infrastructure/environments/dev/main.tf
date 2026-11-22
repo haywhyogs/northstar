@@ -1,5 +1,8 @@
 # The dev environment: the shared platform foundation that every team's dev namespace uses.
 # staging uses the same modules with different settings (only the locals below differ).
+#
+# Modules are pinned to released Git tags (ADR-0009). To roll out a module change: release a new tag,
+# bump it here in dev first, then in staging once dev is proven.
 
 locals {
   environment = "dev"
@@ -37,7 +40,7 @@ resource "azurerm_resource_group" "this" {
 }
 
 module "networking" {
-  source = "../../modules/networking"
+  source = "git::https://github.com/haywhyogs/northstar.git//infrastructure/modules/networking?ref=modules/networking/v1.0.0"
 
   name                            = local.name
   resource_group_name             = azurerm_resource_group.this.name
@@ -49,7 +52,7 @@ module "networking" {
 }
 
 module "monitoring" {
-  source = "../../modules/monitoring"
+  source = "git::https://github.com/haywhyogs/northstar.git//infrastructure/modules/monitoring?ref=modules/monitoring/v1.0.0"
 
   name                = local.name
   resource_group_name = azurerm_resource_group.this.name
@@ -59,7 +62,7 @@ module "monitoring" {
 }
 
 module "registry" {
-  source = "../../modules/registry"
+  source = "git::https://github.com/haywhyogs/northstar.git//infrastructure/modules/registry?ref=modules/registry/v1.0.0"
 
   name                = "acrnorthstar${local.environment}${random_string.suffix.result}"
   resource_group_name = azurerm_resource_group.this.name
@@ -68,7 +71,7 @@ module "registry" {
 }
 
 module "messaging" {
-  source = "../../modules/messaging"
+  source = "git::https://github.com/haywhyogs/northstar.git//infrastructure/modules/messaging?ref=modules/messaging/v1.0.0"
 
   name                = "sb-${local.name}-${random_string.suffix.result}"
   resource_group_name = azurerm_resource_group.this.name
@@ -77,7 +80,7 @@ module "messaging" {
 }
 
 module "database" {
-  source = "../../modules/database"
+  source = "git::https://github.com/haywhyogs/northstar.git//infrastructure/modules/database?ref=modules/database/v1.0.0"
 
   name                  = "sql-${local.name}-${random_string.suffix.result}"
   resource_group_name   = azurerm_resource_group.this.name

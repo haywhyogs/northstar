@@ -17,7 +17,13 @@ terraform {
 }
 
 provider "azurerm" {
-  features {}
+  features {
+    resource_group {
+      # Disposable environment: destroying it also removes resources Azure adds by itself
+      # (e.g. Application Insights' "Failure Anomalies" alert rule). Keep this guard ON in production.
+      prevent_deletion_if_contains_resources = false
+    }
+  }
   # Subscription comes from ARM_SUBSCRIPTION_ID, never from code.
   storage_use_azuread             = true
   resource_provider_registrations = "core"
