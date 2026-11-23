@@ -40,6 +40,12 @@ variable "servicebus_namespace_id" {
   type = string
 }
 
+variable "database_name" {
+  description = "Database name on the shared SQL server. null = the app name. Set it when two environments share one server."
+  type        = string
+  default     = null
+}
+
 variable "queues" {
   description = "Service Bus queues this workload owns. null = one queue named after the app."
   type        = list(string)

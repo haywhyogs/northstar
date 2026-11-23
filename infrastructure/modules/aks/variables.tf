@@ -27,9 +27,9 @@ variable "admin_object_ids" {
 }
 
 variable "vm_size" {
-  description = "Node size. B2ms = 2 vCPUs, 8 GB memory (ADR-0001 budget)."
+  description = "Node size. D2as_v7 = 2 vCPUs, 8 GB memory. B2ms isn't allowed for AKS in our subscription in canadacentral."
   type        = string
-  default     = "Standard_B2ms"
+  default     = "Standard_D2as_v7"
 }
 
 variable "node_count" {
