@@ -91,9 +91,9 @@ resource "azurerm_user_assigned_identity" "github" {
 #   staging = jobs in the GitHub environment "staging", which needs the reviewer's approval first
 locals {
   github_subjects = {
-    main    = "repo:${var.github_repository}:ref:refs/heads/main"
-    dev     = "repo:${var.github_repository}:environment:dev"
-    staging = "repo:${var.github_repository}:environment:staging"
+    main    = "${var.github_oidc_subject_prefix}:ref:refs/heads/main"
+    dev     = "${var.github_oidc_subject_prefix}:environment:dev"
+    staging = "${var.github_oidc_subject_prefix}:environment:staging"
   }
 }
 

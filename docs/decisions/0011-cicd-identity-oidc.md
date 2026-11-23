@@ -13,7 +13,8 @@ every session, so anything the pipeline depends on must survive rebuilds.
 - **Identity:** a user-assigned managed identity, `id-northstar-github`, in the bootstrap resource group (never destroyed).
 - **Sign-in:** OIDC federation. GitHub issues a short-lived token for each job; Entra ID swaps it for an Azure token
   only if the token's subject matches a federated credential. There is no client secret.
-- **One federated credential per context:**
+- **One federated credential per context** (subjects use GitHub's immutable format, `repo:<owner>@<owner-id>/<repo>@<repo-id>`,
+  shortened below):
   - `repo:haywhyogs/northstar:ref:refs/heads/main`: the build job on `main`
   - `repo:haywhyogs/northstar:environment:dev`: deploys to `payments-dev`
   - `repo:haywhyogs/northstar:environment:staging`: deploys to `payments-staging`, only after the GitHub
