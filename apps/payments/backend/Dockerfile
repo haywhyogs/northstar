@@ -9,18 +9,17 @@
 # ---------- Stage 1: builder (has uv; installs dependencies into /app/.venv) ----------
 FROM python:3.12-slim-bookworm AS builder
 COPY --from=ghcr.io/astral-sh/uv:0.13.7 /uv /bin/uv
-ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never UV_NO_CACHE=1
 WORKDIR /app
 
 # Dependencies first (changes rarely -> this layer is reused from cache on most builds).
+# No BuildKit-only features (e.g. RUN --mount), so it also builds with ACR Tasks' classic builder.
 COPY pyproject.toml uv.lock ./
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project
+RUN uv sync --frozen --no-dev --no-install-project
 
 # Then our own code (changes often -> only this cheap layer is rebuilt).
 COPY src ./src
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-editable
+RUN uv sync --frozen --no-dev --no-editable
 
 # ---------- Stage 2: runtime (no uv, no compilers, no tests: only what's needed to run) ----------
 FROM python:3.12-slim-bookworm AS runtime
