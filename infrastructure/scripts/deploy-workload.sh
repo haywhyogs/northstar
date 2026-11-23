@@ -32,7 +32,15 @@ kubectl delete job "${app}-migrate" -n "${namespace}" --ignore-not-found
 kubectl apply -k "${overlay}"
 
 echo "== Waiting for the database migration"
-kubectl wait --for=condition=complete "job/${app}-migrate" -n "${namespace}" --timeout=10m
+if ! kubectl wait --for=condition=complete "job/${app}-migrate" -n "${namespace}" --timeout=10m; then
+  # Show WHY: the newest migration pod's last log lines, and the Job's events.
+  newest="$(kubectl get pods -n "${namespace}" -l "app.kubernetes.io/name=${app}-migrate" \
+    --sort-by=.metadata.creationTimestamp -o name | tail -1)"
+  echo "== Migration failed. Last lines from ${newest}:"
+  kubectl logs -n "${namespace}" "${newest}" --tail=20 || true
+  kubectl describe job "${app}-migrate" -n "${namespace}" | sed -n '/^Events:/,$p'
+  exit 1
+fi
 
 echo "== Waiting for each Deployment to become ready"
 for deployment in $(kubectl get deployments -n "${namespace}" -o name); do

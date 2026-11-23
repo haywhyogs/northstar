@@ -17,15 +17,27 @@ terraform apply tfplan
 # 2. Workload setup jobs: database user + JWT signing key (safe to re-run)
 ../../scripts/workload-setup.sh payments
 
-# 3. Close the public door again: SQL and Key Vault back to private-endpoint only
+# 3. Build both images in ACR from the merged commit, deploy, and load 20 demo customers
+cd ../../..
+TAG=$(git rev-parse HEAD)
+ACR=$(terraform -chdir=infrastructure/environments/dev output -raw acr_login_server | cut -d. -f1)
+az acr build -r "$ACR" -t "payments-backend:$TAG" --platform linux/amd64 apps/payments/backend
+az acr build -r "$ACR" -t "payments-web:$TAG" --platform linux/amd64 apps/payments/web
+az aks get-credentials -g rg-northstar-dev -n aks-northstar-dev --overwrite-existing
+kubelogin convert-kubeconfig -l azurecli
+infrastructure/scripts/deploy-workload.sh payments dev "$TAG"
+(cd apps/payments/backend && DB_AUTH=entra DB_NAME=payments DB_TRUST_SERVER_CERTIFICATE=false \
+  DB_SERVER=$(terraform -chdir=../../../infrastructure/environments/dev output -raw sql_server_fqdn) \
+  uv run python -m northstar_payments.seed --customers 20)
+cd infrastructure/environments/dev
+
+# 4. Close the public door again: SQL and Key Vault back to private-endpoint only
 unset TF_VAR_operator_ip
 terraform plan -out tfplan         # review: firewall rule destroyed, public access true -> false
 terraform apply tfplan
 
-# 4. Connect kubectl (Entra ID sign-in)
-az aks get-credentials -g rg-northstar-dev -n aks-northstar-dev --overwrite-existing
-kubelogin convert-kubeconfig -l azurecli
-kubectl get nodes
+# 5. Open the web page: http://localhost:8080
+kubectl port-forward -n payments-dev svc/payments-web 8080:8080
 ```
 
 ## End (every session, no exceptions)
@@ -44,3 +56,7 @@ The state storage (bootstrap) is never destroyed.
 | `Client address is not authorized` / `is not allowed to access the server` | Your IP changed: export `TF_VAR_operator_ip` again, plan, apply |
 | `Forbidden` from Key Vault right after apply | New role assignments take a few minutes to take effect; retry |
 | `sqlcmd: Unknown Option '-authentication-method'` | The older sqlcmd ran; install go-sqlcmd with `brew install sqlcmd` |
+| `az acr build`: "the --mount option requires BuildKit" | ACR Tasks uses the classic builder; keep Dockerfiles free of BuildKit-only features |
+| Migration Job `Error`, log says `Login timeout expired (HYT00)` | The serverless database was waking up; the Job retries by itself |
+| Migration log says `FA005 Cannot use Access Token with ... Integrated Security` | `Trusted_Connection=Yes` wasn't removed before using the token (fixed in `common/db.py`) |
+| `exec format error` in a pod | The image was built for the wrong chip (ARM on a Mac); build with `--platform linux/amd64` |
