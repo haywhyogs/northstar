@@ -1,27 +1,35 @@
 #!/usr/bin/env bash
-# Deploy a workload's Kubernetes files to an environment, by hand (the Day 5 pipeline runs the same steps).
+# Deploy a workload slice's Kubernetes files. Used by hand and by the deploy pipeline (same steps).
 #   infrastructure/scripts/deploy-workload.sh payments dev <image-tag>
-# Run from the repository root, after `terraform apply` and workload-setup.sh. Needs kubectl connected to the cluster.
+#   infrastructure/scripts/deploy-workload.sh payments staging <image-tag>
+# Run from the repository root, with kubectl connected to the cluster and read access to Terraform state.
 # The image tag is the Git commit SHA the images were built from (build once, deploy the same image everywhere).
+# PLATFORM selects the Terraform folder that holds the cluster (default: dev; staging slices live there too, ADR-0004).
 set -euo pipefail
 
 app="${1:?usage: deploy-workload.sh <app> <env> <image-tag>}"
 env="${2:?usage: deploy-workload.sh <app> <env> <image-tag>}"
 tag="${3:?usage: deploy-workload.sh <app> <env> <image-tag>}"
-prefix="${app//-/_}"
+platform="${PLATFORM:-dev}"
 namespace="${app}-${env}"
 overlay="apps/${app}/kubernetes/overlays/${env}"
-tf() { terraform -chdir="infrastructure/environments/${env}" output -raw "$1"; }
+tf() { terraform -chdir="infrastructure/environments/${platform}" output "$@"; }
 
-echo "== Reading Azure addresses from Terraform outputs (${env})"
-registry="$(tf acr_login_server)"
+echo "== Reading Azure addresses from Terraform outputs (${platform})"
+workload="$(tf -json workloads | jq -e --arg ns "$namespace" '.[$ns]')" \
+  || { echo "No workload '${namespace}' in the ${platform} platform's outputs"; exit 1; }
+field() { jq -r --arg f "$1" '.[$f]' <<<"$workload"; }
+registry="$(tf -raw acr_login_server)"
+
 cat > "${overlay}/platform.env" <<ENV
-DB_SERVER=$(tf sql_server_fqdn)
-SERVICEBUS_NAMESPACE=$(tf servicebus_namespace).servicebus.windows.net
-KEY_VAULT_URI=https://$(tf "${prefix}_key_vault_name").vault.azure.net/
+DB_SERVER=$(tf -raw sql_server_fqdn)
+DB_NAME=$(field database_name)
+SERVICEBUS_NAMESPACE=$(tf -raw servicebus_namespace).servicebus.windows.net
+SERVICEBUS_QUEUE=$(field queue)
+KEY_VAULT_URI=https://$(field key_vault_name).vault.azure.net/
 ENV
 cat > "${overlay}/deploy.env" <<ENV
-IDENTITY_CLIENT_ID=$(tf "${prefix}_identity_client_id")
+IDENTITY_CLIENT_ID=$(field identity_client_id)
 BACKEND_IMAGE=${registry}/${app}-backend:${tag}
 WEB_IMAGE=${registry}/${app}-web:${tag}
 ENV

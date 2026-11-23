@@ -1,4 +1,5 @@
-# Payments in dev = the base + this namespace + this environment's Azure addresses and image versions.
+# Payments in dev = the base + this environment's Azure addresses and image versions.
+# The namespace itself is created by the platform (workload-setup.sh), not here: the pipeline can't create namespaces.
 # platform.env and deploy.env are written by infrastructure/scripts/deploy-workload.sh from Terraform outputs
 # (the Azure names change every time dev is rebuilt), so they are git-ignored.
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -7,11 +8,10 @@ kind: Kustomization
 namespace: payments-dev
 
 resources:
-  - namespace.yaml
   - ../../base
 
 configMapGenerator:
-  # Azure addresses: DB_SERVER, SERVICEBUS_NAMESPACE, KEY_VAULT_URI
+  # Azure addresses and names: DB_SERVER, DB_NAME, SERVICEBUS_NAMESPACE, SERVICEBUS_QUEUE, KEY_VAULT_URI
   - name: payments-config
     behavior: merge
     envs:

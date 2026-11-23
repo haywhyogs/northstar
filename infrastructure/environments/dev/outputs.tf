@@ -26,14 +26,19 @@ output "aks_oidc_issuer_url" {
   value = module.aks.oidc_issuer_url
 }
 
-output "payments_identity_client_id" {
-  value = module.payments.identity_client_id
-}
-
-output "payments_key_vault_name" {
-  value = module.payments.key_vault_name
-}
-
-output "payments_database_grant_sql" {
-  value = module.payments.database_grant_sql
+# Every workload slice, keyed by Kubernetes namespace. The setup and deploy scripts (and the pipeline) read this.
+output "workloads" {
+  value = {
+    for namespace, workload in {
+      "payments-dev"     = module.payments
+      "payments-staging" = module.payments_staging
+      } : namespace => {
+      identity_client_id = workload.identity_client_id
+      identity_name      = workload.identity_name
+      database_name      = workload.database_name
+      queue              = workload.queue_names[0]
+      key_vault_name     = workload.key_vault_name
+      database_grant_sql = workload.database_grant_sql
+    }
+  }
 }
