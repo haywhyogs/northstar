@@ -7,6 +7,7 @@ locals {
   namespace       = coalesce(var.namespace, local.name)
   service_account = coalesce(var.service_account, var.app)
   queues          = coalesce(var.queues, [var.app])
+  database_name   = coalesce(var.database_name, var.app)
   tags            = merge(var.tags, { workload = var.app })
 }
 
@@ -37,7 +38,7 @@ resource "azurerm_federated_identity_credential" "this" {
 # Values from https://learn.microsoft.com/azure/azure-sql/database/free-offer
 resource "azapi_resource" "database" {
   type      = "Microsoft.Sql/servers/databases@2023-08-01"
-  name      = var.app
+  name      = local.database_name
   parent_id = var.sql_server_id
   location  = var.location
   tags      = local.tags

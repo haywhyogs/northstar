@@ -20,6 +20,13 @@ resource "azurerm_kubernetes_cluster" "this" {
     os_disk_type                = "Managed"
     temporary_name_for_rotation = "systemtmp" # lets Terraform change the VM size without destroying the cluster
     tags                        = var.tags
+
+    # Azure's defaults, declared so Terraform doesn't show a change on every plan.
+    upgrade_settings {
+      max_surge                     = "10%" # add a temporary extra node during upgrades
+      drain_timeout_in_minutes      = 0
+      node_soak_duration_in_minutes = 0
+    }
   }
 
   # The cluster's own identity, used by AKS to manage Azure resources (load balancer, node NICs).
