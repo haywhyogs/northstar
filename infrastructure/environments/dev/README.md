@@ -1,7 +1,8 @@
 # Environment: dev
 
 The platform foundation for dev: resource group, VNet with NSG-protected subnets, Log Analytics + Application Insights,
-container registry, Service Bus namespace and Azure SQL logical server. AKS and per-team workloads are added on top.
+container registry, Service Bus namespace, Azure SQL logical server, AKS, and each team's workload (identity, database, queue, Key Vault).
+Full start/end procedure: [docs/runbooks/dev-session.md](../../../docs/runbooks/dev-session.md).
 
 ```bash
 export ARM_SUBSCRIPTION_ID="$(az account show --query id -o tsv)"
