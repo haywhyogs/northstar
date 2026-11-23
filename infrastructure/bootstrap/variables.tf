@@ -16,8 +16,13 @@ variable "soft_delete_days" {
   default     = 7
 }
 
-variable "github_repository" {
-  description = "owner/name of the GitHub repository whose workflows may sign in to Azure (ADR-0011)."
+variable "github_oidc_subject_prefix" {
+  description = <<-EOT
+    Start of the "subject" in the tokens GitHub Actions issues for this repository (ADR-0011).
+    This repository uses GitHub's immutable format, which includes the owner's and repository's numeric IDs,
+    so renaming them can't be used to impersonate it. Check it with:
+      gh api repos/<owner>/<repo>/actions/oidc/customization/sub
+  EOT
   type        = string
-  default     = "haywhyogs/northstar"
+  default     = "repo:haywhyogs@101903693/northstar@1455456695"
 }
