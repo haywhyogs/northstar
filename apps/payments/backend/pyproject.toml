@@ -34,6 +34,10 @@ packages = ["src/northstar_payments"]
 line-length = 110
 target-version = "py312"
 
+[tool.ruff.format]
+# Generated migration files keep Alembic's layout; they're reviewed, not reformatted.
+exclude = ["migrations/versions/*"]
+
 [tool.ruff.lint.flake8-bugbear]
 # FastAPI's dependency-injection style (`x = Depends(...)`) is intended, not a bug.
 extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Header"]

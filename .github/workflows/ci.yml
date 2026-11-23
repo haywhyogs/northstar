@@ -1,0 +1,191 @@
+# CI: runs on every pull request to main. The PR can only merge when "ci-passed" is green (branch ruleset).
+# Jobs run in PARALLEL, each on its own fresh runner, so total time = the slowest job, not the sum.
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main] # also on main, so main is always known-good
+
+# A new push to the same PR cancels the older, now-pointless run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege: CI only reads the code. It never gets Azure access (that's the deploy workflow, with approval).
+permissions:
+  contents: read
+
+jobs:
+  # ---------- 1. Python: style + unit tests (fast, no database) ----------
+  backend-unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/payments/backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.4.0 # this action only publishes exact versions (there is no "v10" tag)
+        with:
+          python-version: "3.12"
+          enable-cache: true # reuse downloaded packages between runs while uv.lock is unchanged
+          cache-dependency-glob: apps/payments/backend/uv.lock
+      - run: uv sync --frozen # exactly the versions in uv.lock
+      - name: Lint
+        run: uv run ruff check .
+      - name: Formatting
+        run: uv run ruff format --check .
+      - name: Unit tests
+        run: uv run pytest tests/unit -q
+
+  # ---------- 2. Python: integration tests against a real SQL Server ----------
+  backend-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/payments/backend
+    env:
+      DB_SERVER: localhost
+      DB_TRUST_SERVER_CERTIFICATE: "true" # throwaway local container with a self-signed certificate
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.4.0 # this action only publishes exact versions (there is no "v10" tag)
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: apps/payments/backend/uv.lock
+      - run: uv sync --frozen
+      - name: Install Microsoft ODBC Driver 18 (how Python talks to SQL Server; same as in the Dockerfile)
+        # https://learn.microsoft.com/sql/connect/odbc/linux-mac/installing-the-microsoft-odbc-driver-for-sql-server
+        run: |
+          version="$(. /etc/os-release && echo "$VERSION_ID")"
+          curl -fsSL -o "$RUNNER_TEMP/packages-microsoft-prod.deb" \
+            "https://packages.microsoft.com/config/ubuntu/${version}/packages-microsoft-prod.deb"
+          sudo dpkg -i "$RUNNER_TEMP/packages-microsoft-prod.deb"
+          sudo apt-get update -q
+          sudo ACCEPT_EULA=Y apt-get install -y -q msodbcsql18
+      - name: Generate throwaway credentials (masked, never stored)
+        run: |
+          db_password="Ci-$(openssl rand -hex 16)"
+          jwt_key="$(openssl rand -base64 48)"
+          echo "::add-mask::${db_password}"
+          echo "::add-mask::${jwt_key}"
+          echo "DB_PASSWORD=${db_password}" >> "$GITHUB_ENV"
+          echo "JWT_SIGNING_KEY=${jwt_key}" >> "$GITHUB_ENV"
+      - name: Start SQL Server (Developer edition, for testing only)
+        run: |
+          docker run -d --name sqlserver -p 1433:1433 \
+            -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD="$DB_PASSWORD" \
+            mcr.microsoft.com/mssql/server:2022-CU28-ubuntu-22.04
+          for i in $(seq 1 30); do
+            if docker exec sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$DB_PASSWORD" -C -b \
+                 -Q "IF DB_ID('northstar') IS NULL CREATE DATABASE northstar;" >/dev/null 2>&1; then
+              echo "SQL Server ready"; exit 0
+            fi
+            sleep 3
+          done
+          echo "SQL Server didn't start"; docker logs sqlserver; exit 1
+      - name: Migrations
+        run: uv run alembic upgrade head
+      - name: Integration tests
+        run: uv run pytest -m integration -q
+
+  # ---------- 3. Web page: type-check and build ----------
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/payments/web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm # reuse downloaded packages while package-lock.json is unchanged
+          cache-dependency-path: apps/payments/web/package-lock.json
+      - run: npm ci
+      - name: Type-check and build
+        run: npm run build
+
+  # ---------- 4. Terraform: formatting + validation of every module and environment ----------
+  terraform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform-plugin-cache
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
+      - name: Cache providers
+        uses: actions/cache@v6
+        with:
+          path: .terraform-plugin-cache
+          key: terraform-${{ hashFiles('infrastructure/**/.terraform.lock.hcl', 'infrastructure/**/versions.tf') }}
+      - run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
+      - name: Formatting
+        run: terraform fmt -check -recursive infrastructure
+      - name: Validate
+        # -backend=false: check the code only. CI has no access to the state file or to Azure.
+        run: |
+          for dir in infrastructure/modules/* infrastructure/environments/* infrastructure/bootstrap; do
+            echo "::group::${dir}"
+            terraform -chdir="$dir" init -backend=false -input=false >/dev/null
+            terraform -chdir="$dir" validate
+            echo "::endgroup::"
+          done
+
+  # ---------- 5. Security: secrets, vulnerable dependencies, risky infrastructure settings ----------
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read # the secret scanner reads the PR's commits
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # full history, so every commit in the PR is scanned
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: astral-sh/setup-uv@v10.4.0 # this action only publishes exact versions (there is no "v10" tag)
+        with:
+          python-version: "3.12"
+      - name: Python dependency vulnerabilities (pip-audit)
+        working-directory: apps/payments/backend
+        run: |
+          uv export --frozen --no-dev --no-emit-project --format requirements-txt > "$RUNNER_TEMP/requirements.txt"
+          uvx pip-audit --disable-pip -r "$RUNNER_TEMP/requirements.txt"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Web dependency vulnerabilities (npm audit)
+        working-directory: apps/payments/web
+        run: npm audit --omit=dev --audit-level=high
+      - name: Infrastructure and Kubernetes misconfigurations (Trivy)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: config
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          # Report mode first: findings are listed but don't fail the build. After we triage them
+          # (fix, or record an accepted exception in .trivyignore), this becomes "1" and blocks merges.
+          exit-code: "0"
+
+  # ---------- One check to require in the branch ruleset ----------
+  ci-passed:
+    if: always()
+    needs: [backend-unit, backend-integration, web, terraform, security]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any CI job failed or was cancelled
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: echo "A CI job failed or was cancelled" && exit 1
+      - run: echo "All CI jobs passed"
