@@ -1,0 +1,56 @@
+# Shared steps for every deploy job: sign in to Azure (OIDC), read Terraform outputs, connect kubectl.
+# A "composite action": written once, reused by deploy-dev and deploy-staging.
+name: Connect to the platform
+description: Azure sign-in with OIDC, Terraform outputs (read-only), and kubectl access to the cluster
+inputs:
+  client-id:
+    required: true
+  tenant-id:
+    required: true
+  subscription-id:
+    required: true
+  platform:
+    description: Terraform environment folder that holds the cluster
+    default: dev
+runs:
+  using: composite
+  steps:
+    - uses: azure/login@v3
+      with:
+        client-id: ${{ inputs.client-id }}
+        tenant-id: ${{ inputs.tenant-id }}
+        subscription-id: ${{ inputs.subscription-id }}
+    - uses: hashicorp/setup-terraform@v4
+      with:
+        terraform_wrapper: false
+    - name: Cache Terraform providers
+      uses: actions/cache@v6
+      with:
+        path: ${{ github.workspace }}/.terraform-plugin-cache
+        key: terraform-${{ hashFiles(format('infrastructure/environments/{0}/.terraform.lock.hcl', inputs.platform)) }}
+    - name: Terraform init (read-only, to read outputs)
+      shell: bash
+      env:
+        ARM_USE_OIDC: "true"
+        ARM_USE_AZUREAD: "true"
+        ARM_CLIENT_ID: ${{ inputs.client-id }}
+        ARM_TENANT_ID: ${{ inputs.tenant-id }}
+        ARM_SUBSCRIPTION_ID: ${{ inputs.subscription-id }}
+        TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform-plugin-cache
+      run: |
+        mkdir -p "$TF_PLUGIN_CACHE_DIR"
+        terraform -chdir="infrastructure/environments/${{ inputs.platform }}" init -input=false \
+          -backend-config=backend.hcl >/dev/null
+        echo "ARM_USE_OIDC=true" >> "$GITHUB_ENV"
+        echo "ARM_USE_AZUREAD=true" >> "$GITHUB_ENV"
+        echo "ARM_CLIENT_ID=${{ inputs.client-id }}" >> "$GITHUB_ENV"
+        echo "ARM_TENANT_ID=${{ inputs.tenant-id }}" >> "$GITHUB_ENV"
+        echo "ARM_SUBSCRIPTION_ID=${{ inputs.subscription-id }}" >> "$GITHUB_ENV"
+    - uses: azure/use-kubelogin@v1
+      with:
+        kubelogin-version: v0.2.22
+    - name: Connect kubectl (Cluster User role, then Entra sign-in through the Azure CLI session)
+      shell: bash
+      run: |
+        az aks get-credentials -g rg-northstar-dev -n aks-northstar-dev --overwrite-existing
+        kubelogin convert-kubeconfig -l azurecli
