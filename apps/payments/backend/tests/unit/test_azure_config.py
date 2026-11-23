@@ -3,7 +3,7 @@
 import struct
 
 from northstar_payments.common.config import Settings
-from northstar_payments.common.db import build_url
+from northstar_payments.common.db import SQL_COPT_SS_ACCESS_TOKEN, build_url, use_access_token
 
 
 def test_entra_database_url_has_no_username_or_password():
@@ -31,3 +31,14 @@ def test_sql_token_is_packed_for_the_odbc_driver(monkeypatch):
     (length,) = struct.unpack("<I", packed[:4])
     assert length == len("abc".encode("utf-16-le"))
     assert packed[4:].decode("utf-16-le") == "abc"
+
+
+def test_token_replaces_windows_sign_in_option():
+    # What SQLAlchemy builds when the URL has no username (regression test for ODBC error FA005).
+    cargs = [
+        "DRIVER={ODBC Driver 18 for SQL Server};Server=sql-x,1433;Database=payments;Trusted_Connection=Yes;Encrypt=yes"
+    ]
+    cparams: dict = {}
+    use_access_token(cargs, cparams, b"token")
+    assert "Trusted_Connection" not in cargs[0]
+    assert cparams["attrs_before"] == {SQL_COPT_SS_ACCESS_TOKEN: b"token"}

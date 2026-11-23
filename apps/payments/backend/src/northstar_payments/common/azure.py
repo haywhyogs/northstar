@@ -13,8 +13,6 @@ from azure.keyvault.secrets import SecretClient
 
 # Scope = "which service is this token for". Azure SQL always uses this one.
 SQL_TOKEN_SCOPE = "https://database.windows.net/.default"
-# ODBC option number for "here is an access token instead of a password" (defined by Microsoft's driver).
-SQL_COPT_SS_ACCESS_TOKEN = 1256
 
 
 @lru_cache
