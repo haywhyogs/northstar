@@ -161,6 +161,13 @@ locals {
   pipeline_namespaces = ["payments-dev", "payments-staging"]
 }
 
+# See the dev resources' names and settings (read-only), e.g. "is dev running?" and "what's the registry called?".
+resource "azurerm_role_assignment" "github_reader" {
+  scope                = azurerm_resource_group.this.id
+  role_definition_name = "Reader"
+  principal_id         = data.azurerm_user_assigned_identity.github.principal_id
+}
+
 # Push images to the registry (includes pull).
 resource "azurerm_role_assignment" "github_acr_push" {
   scope                = module.registry.id

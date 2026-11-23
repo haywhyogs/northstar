@@ -20,7 +20,7 @@ every session, so anything the pipeline depends on must survive rebuilds.
   - `repo:haywhyogs/northstar:environment:staging`: deploys to `payments-staging`, only after the GitHub
     environment's required reviewer approves
 - **Least privilege:** `Storage Blob Data Reader` on the state account (read Terraform outputs, never write state);
-  in dev, `AcrPush` on the registry, `Azure Kubernetes Service Cluster User Role` on the cluster, and
+  in dev, `Reader` on the dev resource group (see resource names), `AcrPush` on the registry, `Azure Kubernetes Service Cluster User Role` on the cluster, and
   `Azure Kubernetes Service RBAC Writer` scoped to the pipeline's namespaces only. Dev grants these, so they are
   recreated with every rebuild.
 - CI (pull requests) gets **no** Azure access at all.
