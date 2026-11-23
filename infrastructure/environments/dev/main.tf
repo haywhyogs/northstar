@@ -126,3 +126,38 @@ module "payments" {
   operator_ip                = var.operator_ip
   tags                       = local.tags
 }
+
+# ---------- What the CI/CD pipeline may do in dev (ADR-0011) ----------
+# The identity itself lives in the bootstrap (it survives rebuilds); its rights are recreated with dev.
+data "azurerm_user_assigned_identity" "github" {
+  name                = "id-northstar-github"
+  resource_group_name = "rg-northstar-tfstate"
+}
+
+locals {
+  # Namespaces the pipeline deploys into. It can't touch kube-system or other teams' namespaces.
+  pipeline_namespaces = ["payments-dev", "payments-staging"]
+}
+
+# Push images to the registry (includes pull).
+resource "azurerm_role_assignment" "github_acr_push" {
+  scope                = module.registry.id
+  role_definition_name = "AcrPush"
+  principal_id         = data.azurerm_user_assigned_identity.github.principal_id
+}
+
+# Download the cluster's connection details (not permission to do anything inside it).
+resource "azurerm_role_assignment" "github_aks_user" {
+  scope                = module.aks.id
+  role_definition_name = "Azure Kubernetes Service Cluster User Role"
+  principal_id         = data.azurerm_user_assigned_identity.github.principal_id
+}
+
+# Inside the cluster: create and update workloads, ONLY in these namespaces. No cluster-wide rights,
+# no access to roles or role bindings, can't create namespaces (the platform does that).
+resource "azurerm_role_assignment" "github_namespace_writer" {
+  for_each             = toset(local.pipeline_namespaces)
+  scope                = "${module.aks.id}/namespaces/${each.value}"
+  role_definition_name = "Azure Kubernetes Service RBAC Writer"
+  principal_id         = data.azurerm_user_assigned_identity.github.principal_id
+}

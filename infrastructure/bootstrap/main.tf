@@ -72,3 +72,43 @@ resource "azurerm_role_assignment" "operator_blob_access" {
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = data.azurerm_client_config.current.object_id
 }
+
+# ---------- CI/CD identity (ADR-0011) ----------
+# The identity GitHub Actions signs in as. It lives here, next to the state, because the bootstrap is never
+# destroyed: the GitHub setup survives every dev rebuild. Its permissions on dev resources are granted by
+# the dev environment itself (recreated with dev).
+resource "azurerm_user_assigned_identity" "github" {
+  name                = "id-northstar-github"
+  resource_group_name = azurerm_resource_group.tfstate.name
+  location            = azurerm_resource_group.tfstate.location
+  tags                = merge(local.tags, { purpose = "ci-cd" })
+}
+
+# OIDC trust rules: "a token from GitHub, for THIS repository, in THIS context, may act as this identity".
+# No client secret exists. Each rule matches exactly one context:
+#   main    = the build job on the main branch (pushes images)
+#   dev     = jobs in the GitHub environment "dev" (deploys to payments-dev)
+#   staging = jobs in the GitHub environment "staging", which needs the reviewer's approval first
+locals {
+  github_subjects = {
+    main    = "repo:${var.github_repository}:ref:refs/heads/main"
+    dev     = "repo:${var.github_repository}:environment:dev"
+    staging = "repo:${var.github_repository}:environment:staging"
+  }
+}
+
+resource "azurerm_federated_identity_credential" "github" {
+  for_each                  = local.github_subjects
+  name                      = "github-${each.key}"
+  user_assigned_identity_id = azurerm_user_assigned_identity.github.id
+  issuer                    = "https://token.actions.githubusercontent.com"
+  subject                   = each.value
+  audience                  = ["api://AzureADTokenExchange"]
+}
+
+# The pipeline reads Terraform outputs (Azure names) but never writes state: read-only on the state blobs.
+resource "azurerm_role_assignment" "github_state_reader" {
+  scope                = azurerm_storage_account.tfstate.id
+  role_definition_name = "Storage Blob Data Reader"
+  principal_id         = azurerm_user_assigned_identity.github.principal_id
+}

@@ -19,3 +19,12 @@ output "backend_config_example" {
     use_azuread_auth     = true
   EOT
 }
+
+# Not secrets: IDs only. Stored as GitHub repository variables (AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID).
+output "github_client_id" {
+  value = azurerm_user_assigned_identity.github.client_id
+}
+
+output "tenant_id" {
+  value = data.azurerm_client_config.current.tenant_id
+}
