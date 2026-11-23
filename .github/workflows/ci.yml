@@ -58,6 +58,15 @@ jobs:
           enable-cache: true
           cache-dependency-glob: apps/payments/backend/uv.lock
       - run: uv sync --frozen
+      - name: Install Microsoft ODBC Driver 18 (how Python talks to SQL Server; same as in the Dockerfile)
+        # https://learn.microsoft.com/sql/connect/odbc/linux-mac/installing-the-microsoft-odbc-driver-for-sql-server
+        run: |
+          version="$(. /etc/os-release && echo "$VERSION_ID")"
+          curl -fsSL -o "$RUNNER_TEMP/packages-microsoft-prod.deb" \
+            "https://packages.microsoft.com/config/ubuntu/${version}/packages-microsoft-prod.deb"
+          sudo dpkg -i "$RUNNER_TEMP/packages-microsoft-prod.deb"
+          sudo apt-get update -q
+          sudo ACCEPT_EULA=Y apt-get install -y -q msodbcsql18
       - name: Generate throwaway credentials (masked, never stored)
         run: |
           db_password="Ci-$(openssl rand -hex 16)"
