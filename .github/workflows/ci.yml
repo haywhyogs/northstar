@@ -27,7 +27,7 @@ jobs:
         working-directory: apps/payments/backend
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.4.0 # this action only publishes exact versions (there is no "v10" tag)
         with:
           python-version: "3.12"
           enable-cache: true # reuse downloaded packages between runs while uv.lock is unchanged
@@ -52,7 +52,7 @@ jobs:
       DB_TRUST_SERVER_CERTIFICATE: "true" # throwaway local container with a self-signed certificate
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.4.0 # this action only publishes exact versions (there is no "v10" tag)
         with:
           python-version: "3.12"
           enable-cache: true
@@ -146,7 +146,7 @@ jobs:
         uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.4.0 # this action only publishes exact versions (there is no "v10" tag)
         with:
           python-version: "3.12"
       - name: Python dependency vulnerabilities (pip-audit)
