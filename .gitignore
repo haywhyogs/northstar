@@ -48,3 +48,6 @@ override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
+# Generated at deploy time from Terraform outputs (Azure names change on every rebuild)
+apps/*/kubernetes/overlays/*/platform.env
+apps/*/kubernetes/overlays/*/deploy.env

@@ -1,0 +1,61 @@
+# The payments API (FastAPI). Customers' requests arrive here through the web container.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payments-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: payments-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: payments-api
+        azure.workload.identity/use: "true" # inject the Azure identity into this pod
+    spec:
+      serviceAccountName: payments
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          image: payments-backend # replaced per environment: <registry>/payments-backend:<git-sha>
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: payments-config
+          # Ready = can serve traffic (database reachable). Until then the Service sends it nothing.
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          # Live = the process isn't stuck. If this fails, Kubernetes restarts the container.
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests: # what the scheduler reserves on the node
+              cpu: 100m
+              memory: 256Mi
+            limits: # memory cap; no CPU limit, so the app is never throttled while the node has spare CPU
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

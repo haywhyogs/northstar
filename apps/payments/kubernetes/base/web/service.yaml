@@ -1,0 +1,12 @@
+# In-cluster address for the web page. Not exposed to the internet: open it with `kubectl port-forward`.
+apiVersion: v1
+kind: Service
+metadata:
+  name: payments-web
+spec:
+  selector:
+    app.kubernetes.io/name: payments-web
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

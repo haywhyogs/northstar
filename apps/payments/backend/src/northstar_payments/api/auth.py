@@ -28,9 +28,14 @@ _DUMMY_HASH = hash_password(uuid.uuid4().hex)
 
 
 def _signing_key(settings: Settings) -> str:
-    if settings.jwt_signing_key is None:
-        raise RuntimeError("JWT_SIGNING_KEY is not set. Check apps/payments/.env")
-    key = settings.jwt_signing_key.get_secret_value()
+    if settings.jwt_signing_key is not None:  # local: from .env
+        key = settings.jwt_signing_key.get_secret_value()
+    elif settings.key_vault_uri is not None:  # Azure: from Key Vault, read with the workload identity
+        from northstar_payments.common.azure import get_secret
+
+        key = get_secret(settings.key_vault_uri, "jwt-signing-key")
+    else:
+        raise RuntimeError("Set JWT_SIGNING_KEY (local) or KEY_VAULT_URI (Azure)")
     if len(key) < 32:
         raise RuntimeError("JWT_SIGNING_KEY must be at least 32 characters")
     return key

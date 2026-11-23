@@ -1,0 +1,52 @@
+# The web page (React, served by nginx). It forwards /api/... to the payments-api Service.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payments-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: payments-web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: payments-web
+    spec:
+      # No Azure identity: the web container never talks to Azure, only to the API.
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: web
+          image: payments-web # replaced per environment: <registry>/payments-web:<git-sha>
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: API_UPSTREAM
+              value: payments-api:8000
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            # nginx writes its config at start-up from a template, so the filesystem stays writable here.
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]

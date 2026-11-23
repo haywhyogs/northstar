@@ -1,0 +1,46 @@
+# Payment worker: takes messages from Service Bus and completes payments, idempotently (ADR-0002).
+# No web port, so no HTTP probes: if the process crashes, Kubernetes restarts it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payments-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: payments-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: payments-worker
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: payments
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          image: payments-backend # replaced per environment: <registry>/payments-backend:<git-sha>
+          command: ["python", "-m", "northstar_payments.worker"]
+          envFrom:
+            - configMapRef:
+                name: payments-config
+          resources:
+            requests:
+              cpu: 50m
+              memory: 192Mi
+            limits:
+              memory: 384Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

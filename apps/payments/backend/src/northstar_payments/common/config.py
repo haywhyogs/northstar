@@ -39,6 +39,8 @@ class Settings(BaseSettings):
 
     # Customer login tokens (ADR-0007). Locally from .env; in Azure from Key Vault via workload identity.
     jwt_signing_key: SecretStr | None = None
+    # Azure only: e.g. https://kv-payments-dev-xxxxx.vault.azure.net/ . The key is read from secret "jwt-signing-key".
+    key_vault_uri: str | None = None
     jwt_ttl_minutes: int = 15
 
     log_level: str = "INFO"
@@ -46,6 +48,8 @@ class Settings(BaseSettings):
     # Service Bus. Locally: the emulator's documented connection string (not a secret).
     # In Azure: no connection string; the workload identity is used instead (added with the AKS platform).
     servicebus_connection_string: SecretStr | None = None
+    # Azure only: e.g. sb-northstar-dev-xxxxx.servicebus.windows.net (used when there is no connection string)
+    servicebus_namespace: str | None = None
     servicebus_queue: str = "payments"
     dispatcher_batch_size: int = 20
     dispatcher_idle_seconds: float = 1.0
