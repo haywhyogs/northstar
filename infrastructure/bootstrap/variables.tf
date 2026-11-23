@@ -15,3 +15,9 @@ variable "soft_delete_days" {
   type        = number
   default     = 7
 }
+
+variable "github_repository" {
+  description = "owner/name of the GitHub repository whose workflows may sign in to Azure (ADR-0011)."
+  type        = string
+  default     = "haywhyogs/northstar"
+}
