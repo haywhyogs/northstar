@@ -1,0 +1,129 @@
+# CD: after a merge to main, build the images ONCE, then promote the same images dev -> (approval) -> staging.
+#   build ──► deploy payments-dev (automatic) ──► smoke test ──► ⏸ reviewer approves ──► deploy payments-staging ──► smoke test
+# Azure sign-in is OIDC: no secret is stored anywhere (ADR-0011).
+name: deploy
+
+on:
+  push:
+    branches: [main]
+    paths: # only when something that affects the running app changes
+      - apps/payments/**
+      - infrastructure/scripts/**
+      - .github/workflows/deploy.yml
+  workflow_dispatch: {} # "Run workflow" button: redeploy after dev is rebuilt
+
+# One deployment at a time, and never cancel one halfway through.
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write # lets the job ask GitHub for an OIDC token (to swap for an Azure token)
+
+env:
+  RESOURCE_GROUP: rg-northstar-dev
+  CLUSTER: aks-northstar-dev
+  APP: payments
+  TAG: ${{ github.sha }} # every image is tagged with the commit it was built from
+
+jobs:
+  # ---------- Is dev running? (it's destroyed between working sessions) ----------
+  platform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      up: ${{ steps.check.outputs.up }}
+      registry: ${{ steps.check.outputs.registry }}
+    steps:
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - id: check
+        run: |
+          if [ "$(az group exists -n "$RESOURCE_GROUP")" = "true" ]; then
+            echo "up=true" >> "$GITHUB_OUTPUT"
+            echo "registry=$(az acr list -g "$RESOURCE_GROUP" --query '[0].loginServer' -o tsv)" >> "$GITHUB_OUTPUT"
+          else
+            echo "up=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Dev is not running, so nothing was deployed. After rebuilding dev, use 'Run workflow'."
+          fi
+
+  # ---------- Build once: both images, scanned, pushed with the commit SHA ----------
+  build:
+    needs: platform
+    if: needs.platform.outputs.up == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      matrix: # the two images build in parallel
+        image: [backend, web]
+    env:
+      IMAGE: ${{ needs.platform.outputs.registry }}/payments-${{ matrix.image }}:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Sign in to the registry (Entra ID token, AcrPush role)
+        run: az acr login --name "${{ needs.platform.outputs.registry }}"
+      - uses: docker/setup-buildx-action@v4
+      - name: Build
+        uses: docker/build-push-action@v7
+        with:
+          context: apps/payments/${{ matrix.image }}
+          platforms: linux/amd64
+          tags: ${{ env.IMAGE }}
+          load: true # keep it on the runner so it can be scanned BEFORE it's pushed
+          # Layer cache between runs: unchanged layers (e.g. dependencies) aren't rebuilt.
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+      - name: Scan the image (block on fixable critical vulnerabilities)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE }}
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Push
+        run: docker push "$IMAGE"
+
+  # ---------- Deploy to payments-dev: automatic ----------
+  deploy-dev:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: dev # Azure only trusts this job through the "dev" federated credential
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/connect-to-platform
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Deploy
+        run: infrastructure/scripts/deploy-workload.sh "$APP" dev "$TAG"
+      - name: Smoke test
+        run: infrastructure/scripts/smoke-test.sh "$APP" dev
+
+  # ---------- Deploy the SAME images to payments-staging: waits for the reviewer's approval ----------
+  deploy-staging:
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: staging # required reviewer + main branch only (GitHub environment rules)
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/connect-to-platform
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Deploy
+        run: infrastructure/scripts/deploy-workload.sh "$APP" staging "$TAG"
+      - name: Smoke test
+        run: infrastructure/scripts/smoke-test.sh "$APP" staging
