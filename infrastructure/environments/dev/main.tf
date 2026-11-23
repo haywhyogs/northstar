@@ -96,21 +96,21 @@ module "database" {
 }
 
 module "aks" {
-  source = "git::https://github.com/haywhyogs/northstar.git//infrastructure/modules/aks?ref=modules/aks/v1.0.0"
+  source = "git::https://github.com/haywhyogs/northstar.git//infrastructure/modules/aks?ref=modules/aks/v1.1.0"
 
   name                = local.name
   resource_group_name = azurerm_resource_group.this.name
   location            = local.location
   subnet_id           = module.networking.aks_subnet_id
   acr_id              = module.registry.id
-  vm_size             = "Standard_D2as_v7"                             # B2ms isn't allowed for AKS in this subscription in canadacentral
+  vm_size             = "Standard_D2as_v7"                             # stated explicitly: each environment shows its size
   admin_object_ids    = [data.azurerm_client_config.current.object_id] # production: an Entra ID group
   tags                = local.tags
 }
 
 # The payments team's slice of the platform (ADR-0010). A new team = one more block like this.
 module "payments" {
-  source = "git::https://github.com/haywhyogs/northstar.git//infrastructure/modules/workload?ref=modules/workload/v1.0.0"
+  source = "git::https://github.com/haywhyogs/northstar.git//infrastructure/modules/workload?ref=modules/workload/v1.1.0"
 
   app                        = "payments"
   environment                = local.environment
@@ -120,6 +120,28 @@ module "payments" {
   sql_server_id              = module.database.id
   servicebus_namespace_id    = module.messaging.id
   key_vault_name             = "kv-payments-dev-${random_string.suffix.result}"
+  private_endpoint_subnet_id = module.networking.private_endpoints_subnet_id
+  key_vault_dns_zone_id      = module.networking.private_dns_zone_ids["key_vault"]
+  operator_object_id         = data.azurerm_client_config.current.object_id
+  operator_ip                = var.operator_ip
+  tags                       = local.tags
+}
+
+# The payments team's staging slice: same cluster and servers, its own namespace, identity, database, queue and
+# Key Vault (ADR-0004). Deploying here needs the reviewer's approval in GitHub.
+module "payments_staging" {
+  source = "git::https://github.com/haywhyogs/northstar.git//infrastructure/modules/workload?ref=modules/workload/v1.1.0"
+
+  app                        = "payments"
+  environment                = "staging"
+  database_name              = "payments-staging"
+  queues                     = ["payments-staging"]
+  resource_group_name        = azurerm_resource_group.this.name
+  location                   = local.location
+  oidc_issuer_url            = module.aks.oidc_issuer_url
+  sql_server_id              = module.database.id
+  servicebus_namespace_id    = module.messaging.id
+  key_vault_name             = "kv-payments-stg-${random_string.suffix.result}"
   private_endpoint_subnet_id = module.networking.private_endpoints_subnet_id
   key_vault_dns_zone_id      = module.networking.private_dns_zone_ids["key_vault"]
   operator_object_id         = data.azurerm_client_config.current.object_id

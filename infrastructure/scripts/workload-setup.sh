@@ -1,32 +1,49 @@
 #!/usr/bin/env bash
-# One-off setup for a workload after `terraform apply` (ADR-0010). Safe to run again: it skips what's already done.
-#   1. Adds the workload's identity to its database's user list (CREATE USER ... FROM EXTERNAL PROVIDER).
-#   2. Stores a random JWT signing key in the workload's Key Vault, if none exists yet.
+# One-off setup for a workload slice after `terraform apply` (ADR-0010). Safe to run again: it skips what's done.
+#   1. Creates the Kubernetes namespace (the platform owns namespaces; the pipeline can't create them).
+#   2. Adds the slice's identity to its database's user list (CREATE USER ... FROM EXTERNAL PROVIDER).
+#   3. Stores a random JWT signing key in the slice's Key Vault, if none exists yet.
 #
-# Run it from an environment folder (e.g. infrastructure/environments/dev), while operator_ip is set:
-#   ../../scripts/workload-setup.sh payments
-# Needs: az (logged in as the SQL Entra admin), terraform, openssl, and go-sqlcmd (`brew install sqlcmd`).
+# Run from the platform folder (infrastructure/environments/dev), while operator_ip is set and kubectl is connected:
+#   ../../scripts/workload-setup.sh payments dev
+#   ../../scripts/workload-setup.sh payments staging
+# Needs: az (logged in as the SQL Entra admin), terraform, jq, kubectl, openssl, go-sqlcmd (`brew install sqlcmd`).
 # Secrets are never printed or written to disk.
 set -euo pipefail
 
-app="${1:?usage: workload-setup.sh <app>   e.g. payments}"
-prefix="${app//-/_}" # Terraform output names use underscores: fx-rates -> fx_rates
+app="${1:?usage: workload-setup.sh <app> <env>   e.g. payments dev}"
+env="${2:?usage: workload-setup.sh <app> <env>   e.g. payments dev}"
+namespace="${app}-${env}"
 
 # go-sqlcmd (supports Entra sign-in). The older mssql-tools18 sqlcmd may come first on PATH, so use Homebrew's path.
 sqlcmd="$(brew --prefix sqlcmd 2>/dev/null)/bin/sqlcmd"
 [[ -x "$sqlcmd" ]] || { echo "go-sqlcmd not found: run 'brew install sqlcmd'"; exit 1; }
 
+workload="$(terraform output -json workloads | jq -e --arg ns "$namespace" '.[$ns]')" \
+  || { echo "No workload '${namespace}' in this platform's outputs"; exit 1; }
+field() { jq -r --arg f "$1" '.[$f]' <<<"$workload"; }
 server="$(terraform output -raw sql_server_fqdn)"
-grant_sql="$(terraform output -raw "${prefix}_database_grant_sql")"
-vault="$(terraform output -raw "${prefix}_key_vault_name")"
-database="$app"
-identity="id-${app}-$(basename "$PWD")"
+database="$(field database_name)"
+identity="$(field identity_name)"
+vault="$(field key_vault_name)"
+
+echo "== 1/3 Namespace ${namespace}"
+# "restricted": Kubernetes refuses pods that run as root or skip the security settings.
+kubectl apply -f - <<YAML
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ${namespace}
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+YAML
 
 run_sql() {
   "$sqlcmd" -S "$server" -d "$database" --authentication-method ActiveDirectoryDefault -h -1 -W -Q "$1"
 }
 
-echo "== 1/2 Database access for ${identity} on ${database}"
+echo "== 2/3 Database access for ${identity} on ${database}"
 # Serverless databases pause when idle; the first connection wakes them (error 40613 for about a minute).
 for attempt in 1 2 3 4 5 6; do
   if exists="$(run_sql "SET NOCOUNT ON; SELECT COUNT(*) FROM sys.database_principals WHERE name = '${identity}'" 2>&1)"; then
@@ -45,11 +62,11 @@ done
 if [[ "$(echo "$exists" | tr -d '[:space:]')" == "1" ]]; then
   echo "   already granted, skipping"
 else
-  run_sql "$grant_sql"
+  run_sql "$(field database_grant_sql)"
   echo "   granted"
 fi
 
-echo "== 2/2 JWT signing key in ${vault}"
+echo "== 3/3 JWT signing key in ${vault}"
 if az keyvault secret show --vault-name "$vault" --name jwt-signing-key --query name -o tsv >/dev/null 2>&1; then
   echo "   already stored, skipping"
 else
@@ -58,4 +75,4 @@ else
   echo "   stored"
 fi
 
-echo "Done. Now unset TF_VAR_operator_ip, then plan and apply to make SQL and Key Vault private again."
+echo "Done: ${namespace}."
