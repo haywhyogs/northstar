@@ -1,0 +1,9 @@
+# The payments team's space in the dev cluster. "restricted" = Kubernetes refuses any pod that runs as root,
+# can gain extra privileges, or skips the security settings in the base files.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: payments-dev
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest

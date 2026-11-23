@@ -1,0 +1,30 @@
+# Payments workload: the parts that are the same in every environment.
+# Each environment's overlay (overlays/<env>) adds its namespace, Azure addresses and image versions.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: payments
+    includeSelectors: false
+
+resources:
+  - serviceaccount.yaml
+  - migrate/job.yaml
+  - api/deployment.yaml
+  - api/service.yaml
+  - dispatcher/deployment.yaml
+  - worker/deployment.yaml
+  - web/deployment.yaml
+  - web/service.yaml
+
+# Settings shared by every backend container. Addresses, not secrets: there are no passwords anywhere.
+configMapGenerator:
+  - name: payments-config
+    literals:
+      - DB_AUTH=entra
+      - DB_NAME=payments
+      - DB_PORT=1433
+      - SERVICEBUS_QUEUE=payments
+      - JWT_TTL_MINUTES=15
+      - LOG_LEVEL=INFO

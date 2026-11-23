@@ -2,7 +2,7 @@
 
 from functools import lru_cache
 
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.engine import URL
 
 from northstar_payments.common.config import Settings, get_settings
@@ -29,11 +29,23 @@ def build_url(settings: Settings) -> URL:
             database=settings.db_name,
             query=query,
         )
-    # Passwordless Entra ID authentication (AKS workload identity) is added with the AKS platform.
-    raise NotImplementedError("db_auth='entra' is not implemented yet (AKS workload identity)")
+    # Entra ID: no username or password in the URL. A token is handed to the driver on every new connection.
+    return URL.create(
+        "mssql+pyodbc", host=settings.db_server, port=settings.db_port, database=settings.db_name, query=query
+    )
 
 
 @lru_cache
 def get_engine() -> Engine:
     # pool_pre_ping: test a pooled connection before using it, so a database restart doesn't break requests.
-    return create_engine(build_url(get_settings()), pool_pre_ping=True)
+    settings = get_settings()
+    engine = create_engine(build_url(settings), pool_pre_ping=True)
+    if settings.db_auth == "entra":
+        from northstar_payments.common.azure import SQL_COPT_SS_ACCESS_TOKEN, sql_access_token
+
+        @event.listens_for(engine, "do_connect")
+        def _provide_token(dialect, conn_rec, cargs, cparams):
+            # Fresh (cached) token for each new connection, so expired tokens are never reused.
+            cparams["attrs_before"] = {SQL_COPT_SS_ACCESS_TOKEN: sql_access_token()}
+
+    return engine

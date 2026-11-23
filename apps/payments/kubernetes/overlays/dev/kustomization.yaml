@@ -1,0 +1,70 @@
+# Payments in dev = the base + this namespace + this environment's Azure addresses and image versions.
+# platform.env and deploy.env are written by infrastructure/scripts/deploy-workload.sh from Terraform outputs
+# (the Azure names change every time dev is rebuilt), so they are git-ignored.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: payments-dev
+
+resources:
+  - namespace.yaml
+  - ../../base
+
+configMapGenerator:
+  # Azure addresses: DB_SERVER, SERVICEBUS_NAMESPACE, KEY_VAULT_URI
+  - name: payments-config
+    behavior: merge
+    envs:
+      - platform.env
+  # Deploy-time values used below only: the identity's client ID and the image references
+  - name: payments-deploy
+    envs:
+      - deploy.env
+
+# Copy the deploy-time values into the right places.
+replacements:
+  - source:
+      kind: ConfigMap
+      name: payments-deploy
+      fieldPath: data.IDENTITY_CLIENT_ID
+    targets:
+      - select:
+          kind: ServiceAccount
+          name: payments
+        fieldPaths:
+          - metadata.annotations.[azure.workload.identity/client-id]
+  - source:
+      kind: ConfigMap
+      name: payments-deploy
+      fieldPath: data.BACKEND_IMAGE
+    targets:
+      - select:
+          kind: Deployment
+          name: payments-api
+        fieldPaths:
+          - spec.template.spec.containers.[name=api].image
+      - select:
+          kind: Deployment
+          name: payments-dispatcher
+        fieldPaths:
+          - spec.template.spec.containers.[name=dispatcher].image
+      - select:
+          kind: Deployment
+          name: payments-worker
+        fieldPaths:
+          - spec.template.spec.containers.[name=worker].image
+      - select:
+          kind: Job
+          name: payments-migrate
+        fieldPaths:
+          - spec.template.spec.containers.[name=migrate].image
+  - source:
+      kind: ConfigMap
+      name: payments-deploy
+      fieldPath: data.WEB_IMAGE
+    targets:
+      - select:
+          kind: Deployment
+          name: payments-web
+        fieldPaths:
+          - spec.template.spec.containers.[name=web].image

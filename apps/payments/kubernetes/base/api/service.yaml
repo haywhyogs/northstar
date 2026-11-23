@@ -1,0 +1,12 @@
+# A stable in-cluster address for the API: payments-api:8000. Only reachable from inside the cluster.
+apiVersion: v1
+kind: Service
+metadata:
+  name: payments-api
+spec:
+  selector:
+    app.kubernetes.io/name: payments-api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
