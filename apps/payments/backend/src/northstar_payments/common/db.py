@@ -7,6 +7,9 @@ from sqlalchemy.engine import URL
 
 from northstar_payments.common.config import Settings, get_settings
 
+# ODBC option number for "here is an access token instead of a password" (defined by Microsoft's driver).
+SQL_COPT_SS_ACCESS_TOKEN = 1256
+
 ODBC_DRIVER = "ODBC Driver 18 for SQL Server"
 
 
@@ -35,17 +38,27 @@ def build_url(settings: Settings) -> URL:
     )
 
 
+def use_access_token(cargs: list, cparams: dict, token: bytes) -> None:
+    """Hand the driver an Entra ID token instead of a password, for one new connection.
+
+    With no username in the URL, SQLAlchemy adds "Trusted_Connection=Yes" (Windows sign-in). The ODBC driver
+    refuses a token combined with that option (error FA005), so it is removed first.
+    https://docs.sqlalchemy.org/en/20/dialects/mssql.html#connecting-to-databases-with-access-tokens
+    """
+    cargs[0] = cargs[0].replace(";Trusted_Connection=Yes", "")
+    cparams["attrs_before"] = {SQL_COPT_SS_ACCESS_TOKEN: token}
+
+
 @lru_cache
 def get_engine() -> Engine:
     # pool_pre_ping: test a pooled connection before using it, so a database restart doesn't break requests.
     settings = get_settings()
     engine = create_engine(build_url(settings), pool_pre_ping=True)
     if settings.db_auth == "entra":
-        from northstar_payments.common.azure import SQL_COPT_SS_ACCESS_TOKEN, sql_access_token
+        from northstar_payments.common.azure import sql_access_token
 
         @event.listens_for(engine, "do_connect")
         def _provide_token(dialect, conn_rec, cargs, cparams):
-            # Fresh (cached) token for each new connection, so expired tokens are never reused.
-            cparams["attrs_before"] = {SQL_COPT_SS_ACCESS_TOKEN: sql_access_token()}
+            use_access_token(cargs, cparams, sql_access_token())
 
     return engine
