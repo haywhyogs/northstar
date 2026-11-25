@@ -96,7 +96,7 @@ module "database" {
 }
 
 module "aks" {
-  source = "git::https://github.com/haywhyogs/northstar.git//infrastructure/modules/aks?ref=modules/aks/v1.1.0"
+  source = "git::https://github.com/haywhyogs/northstar.git//infrastructure/modules/aks?ref=modules/aks/v1.2.0"
 
   name                = local.name
   resource_group_name = azurerm_resource_group.this.name
