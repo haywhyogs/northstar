@@ -105,7 +105,9 @@ module "aks" {
   acr_id              = module.registry.id
   vm_size             = "Standard_D2as_v7"                             # stated explicitly: each environment shows its size
   admin_object_ids    = [data.azurerm_client_config.current.object_id] # production: an Entra ID group
-  tags                = local.tags
+  # Container insights: send pod logs, node and pod metrics to the shared workspace (capped by its daily quota).
+  log_analytics_workspace_id = module.monitoring.log_analytics_workspace_id
+  tags                       = local.tags
 }
 
 # The payments team's slice of the platform (ADR-0010). A new team = one more block like this.
