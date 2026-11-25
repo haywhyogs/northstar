@@ -46,7 +46,17 @@ spec:
               memory: 128Mi
           securityContext:
             allowPrivilegeEscalation: false
-            # nginx writes its config at start-up from a template, so the filesystem stays writable here.
-            readOnlyRootFilesystem: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
+          # The only places nginx writes: its config (rendered from the template at start-up) and /tmp (pid, cache).
+          volumeMounts:
+            - name: nginx-conf
+              mountPath: /etc/nginx/conf.d
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: nginx-conf
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

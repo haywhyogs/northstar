@@ -1,20 +1,53 @@
 # Dependabot opens a PR when a newer version exists, so base images, libraries and actions don't silently age.
 # Each PR goes through CI like any other change, so an update that breaks something can't merge.
+#
+# Grouping: one PR per ecosystem per week for minor and patch updates (small, backwards-compatible changes),
+# instead of one PR per package. Major versions (breaking changes, e.g. React 18 -> 19) are held back here and
+# planned as their own piece of work, because they usually need code changes. Security fixes still arrive
+# immediately as Dependabot security PRs, majors included.
 version: 2
 updates:
   - package-ecosystem: docker # base images in the Dockerfiles
     directories: ["/apps/payments/backend", "/apps/payments/web"]
     schedule:
       interval: weekly
+    groups:
+      base-images:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: uv # Python libraries (uv.lock)
     directory: /apps/payments/backend
     schedule:
       interval: weekly
+    groups:
+      python:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: npm # web libraries (package-lock.json)
     directory: /apps/payments/web
     schedule:
       interval: weekly
+    groups:
+      web:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions # the actions our workflows use
     directory: /
     schedule:
       interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
