@@ -3,7 +3,7 @@
 # Build from apps/payments/web:  docker build -t northstar-payments-web:local .
 
 # ---------- Stage 1: build (Node + dev tools; thrown away afterwards) ----------
-FROM node:22-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 # No BuildKit-only features (e.g. RUN --mount), so it also builds with ACR Tasks' classic builder.
