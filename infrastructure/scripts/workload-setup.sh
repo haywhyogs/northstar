@@ -40,7 +40,8 @@ metadata:
 YAML
 
 run_sql() {
-  "$sqlcmd" -S "$server" -d "$database" --authentication-method ActiveDirectoryDefault -h -1 -W -Q "$1"
+  # -b: exit with an error code if any SQL statement fails (otherwise sqlcmd prints the error and "succeeds").
+  "$sqlcmd" -S "$server" -d "$database" --authentication-method ActiveDirectoryDefault -b -h -1 -W -Q "$1"
 }
 
 echo "== 2/3 Database access for ${identity} on ${database}"
@@ -62,7 +63,13 @@ done
 if [[ "$(echo "$exists" | tr -d '[:space:]')" == "1" ]]; then
   echo "   already granted, skipping"
 else
-  run_sql "$(field database_grant_sql)"
+  # WITH OBJECT_ID: tell SQL exactly which Entra identity this is, instead of SQL looking the name up in Entra ID.
+  # The name lookup depends on SQL reaching Microsoft Graph on your behalf, and can fail for brand-new identities.
+  object_id="$(az identity show -g "$(terraform output -raw resource_group_name)" -n "$identity" --query principalId -o tsv)"
+  run_sql "CREATE USER [${identity}] FROM EXTERNAL PROVIDER WITH OBJECT_ID = '${object_id}';
+           ALTER ROLE db_datareader ADD MEMBER [${identity}];
+           ALTER ROLE db_datawriter ADD MEMBER [${identity}];
+           ALTER ROLE db_ddladmin ADD MEMBER [${identity}];"
   echo "   granted"
 fi
 
