@@ -18,3 +18,16 @@ vulnerabilities:
   - id: CVE-2026-123633
     statement: "Worker use-after-free in an optional module; not reachable from outside the cluster. Awaiting nginx 1.30.7 image."
     expired_at: 2026-12-09
+
+# Accepted misconfigurations (design decisions, documented in ADRs). Reviewed 2026-11-25.
+misconfigurations:
+  - id: AZU-0041
+    statement: >-
+      AKS API server reachable from any IP. Access requires Entra ID (local accounts disabled, Azure RBAC), and the GitHub-hosted
+      runners that deploy have changing IPs, so an IP allow-list would block the pipeline. Production: private cluster or
+      authorized IP ranges with self-hosted runners.
+  - id: AZU-0012
+    paths: ["infrastructure/bootstrap/main.tf"]
+    statement: >-
+      State storage keeps its public endpoint so the laptop and GitHub runners can reach it; access is Entra ID only
+      (account keys disabled). Production: private endpoint + runners inside the network (ADR-0008, ADR-0010).

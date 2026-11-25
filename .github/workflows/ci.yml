@@ -171,13 +171,15 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
       - name: Infrastructure and Kubernetes misconfigurations (Trivy)
         uses: aquasecurity/trivy-action@v0.36.0
+        env:
+          TRIVY_IGNOREFILE: .trivyignore.yaml # accepted exceptions, each with a written reason
         with:
           scan-type: config
           scan-ref: .
           severity: HIGH,CRITICAL
-          # Report mode first: findings are listed but don't fail the build. After we triage them
-          # (fix, or record an accepted exception in .trivyignore), this becomes "1" and blocks merges.
-          exit-code: "0"
+          # Blocking: findings were triaged on 2026-11-25 (one fixed, two accepted with reasons in .trivyignore.yaml),
+          # so any NEW high or critical misconfiguration now fails the PR.
+          exit-code: "1"
 
   # ---------- One check to require in the branch ruleset ----------
   ci-passed:
