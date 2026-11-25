@@ -58,6 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
+      fail-fast: false # if one image fails its scan, still finish (and report on) the other
       matrix: # the two images build in parallel
         image: [backend, web]
     env:
