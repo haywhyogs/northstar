@@ -68,6 +68,74 @@ resource "azurerm_kubernetes_cluster" "this" {
   tags = var.tags
 }
 
+# ---------- Container insights: what the agent collects and where it sends it ----------
+# The add-on above only installs the agent (the ama-logs pods). With managed-identity auth, the agent also needs a
+# data collection rule (DCR) linked to the cluster. The portal and CLI create these for you; Terraform doesn't.
+# Based on Microsoft's Terraform template for Container insights (Microsoft Learn: "Enable monitoring for AKS").
+locals {
+  container_insights = var.log_analytics_workspace_id != null
+
+  # Cost-optimised: no legacy ContainerLog table (ContainerLogV2 replaces it), and samples every 5 minutes.
+  container_insights_streams = [
+    "Microsoft-ContainerLogV2",     # what our containers print (our JSON logs)
+    "Microsoft-KubeEvents",         # what `kubectl describe` shows: probe failures, OOMKilled, image pulls
+    "Microsoft-KubePodInventory",   # which pods exist, their status and restarts
+    "Microsoft-KubeNodeInventory",  # node status
+    "Microsoft-KubeServices",       # services
+    "Microsoft-KubeMonAgentEvents", # the agent's own health
+    "Microsoft-InsightsMetrics",    # CPU and memory per pod/container
+    "Microsoft-ContainerInventory", # container images and states
+    "Microsoft-ContainerNodeInventory",
+    "Microsoft-Perf", # node and container performance counters
+  ]
+}
+
+resource "azurerm_monitor_data_collection_rule" "container_insights" {
+  count               = local.container_insights ? 1 : 0
+  name                = "MSCI-${var.location}-aks-${var.name}"
+  resource_group_name = var.resource_group_name
+  location            = var.location # same region as the workspace
+  description         = "Container insights for aks-${var.name}"
+  tags                = var.tags
+
+  destinations {
+    log_analytics {
+      workspace_resource_id = var.log_analytics_workspace_id
+      name                  = "ciworkspace"
+    }
+  }
+
+  data_flow {
+    streams      = local.container_insights_streams
+    destinations = ["ciworkspace"]
+  }
+
+  data_sources {
+    extension {
+      name           = "ContainerInsightsExtension"
+      extension_name = "ContainerInsights"
+      streams        = local.container_insights_streams
+      extension_json = jsonencode({
+        dataCollectionSettings = {
+          interval               = "5m"      # Microsoft's cost-optimised preset (default is 1m)
+          namespaceFilteringMode = "Exclude" # skip the cluster's own system namespace: noisy and not ours
+          namespaces             = ["kube-system"]
+          enableContainerLogV2   = true
+        }
+      })
+    }
+  }
+}
+
+# Links the rule to the cluster. Without this, the agent runs but collects nothing (what we saw on 2026-11-25).
+resource "azurerm_monitor_data_collection_rule_association" "container_insights" {
+  count                   = local.container_insights ? 1 : 0
+  name                    = "ContainerInsightsExtension" # the name Azure expects for this association
+  target_resource_id      = azurerm_kubernetes_cluster.this.id
+  data_collection_rule_id = azurerm_monitor_data_collection_rule.container_insights[0].id
+  description             = "Deleting this association stops Container insights data collection for this cluster."
+}
+
 # AKS needs to manage the node's network card in our subnet.
 resource "azurerm_role_assignment" "cluster_network" {
   scope                = var.subnet_id
