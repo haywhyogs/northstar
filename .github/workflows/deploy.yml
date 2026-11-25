@@ -85,6 +85,8 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
       - name: Scan the image (block on fixable critical vulnerabilities)
         uses: aquasecurity/trivy-action@v0.36.0
+        env:
+          TRIVY_IGNOREFILE: .trivyignore.yaml # accepted exceptions, each with a reason and an expiry date
         with:
           image-ref: ${{ env.IMAGE }}
           severity: CRITICAL

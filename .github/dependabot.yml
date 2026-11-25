@@ -1,0 +1,20 @@
+# Dependabot opens a PR when a newer version exists, so base images, libraries and actions don't silently age.
+# Each PR goes through CI like any other change, so an update that breaks something can't merge.
+version: 2
+updates:
+  - package-ecosystem: docker # base images in the Dockerfiles
+    directories: ["/apps/payments/backend", "/apps/payments/web"]
+    schedule:
+      interval: weekly
+  - package-ecosystem: uv # Python libraries (uv.lock)
+    directory: /apps/payments/backend
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm # web libraries (package-lock.json)
+    directory: /apps/payments/web
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions # the actions our workflows use
+    directory: /
+    schedule:
+      interval: weekly

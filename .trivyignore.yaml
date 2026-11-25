@@ -1,0 +1,20 @@
+# Accepted vulnerability exceptions (risk acceptance). Each entry needs: the CVE, WHY it's accepted, and an
+# expiry date. After `expired_at`, Trivy reports it again and the pipeline blocks: exceptions can't be forgotten.
+# Review: Platform engineer (repository owner), 2026-11-25.
+vulnerabilities:
+  # nginx 1.30.6 in nginxinc/nginx-unprivileged:1.30-alpine. Fixed in nginx 1.30.7, but no published image
+  # contains it yet (newest image: 2026-10-19). Remove these as soon as a rebuilt 1.30 image is available.
+  # Compensating factors: the payments-web nginx serves plain HTTP/1.1 on an internal ClusterIP Service only
+  # (no Ingress, no public IP), and doesn't enable the mail or HTTP/2 modules.
+  - id: CVE-2026-113425
+    statement: "Mail-module use-after-free; the mail module isn't used. Awaiting nginx 1.30.7 image."
+    expired_at: 2026-12-09
+  - id: CVE-2026-121810
+    statement: "Worker use-after-free in an optional module; not reachable from outside the cluster. Awaiting nginx 1.30.7 image."
+    expired_at: 2026-12-09
+  - id: CVE-2026-123007
+    statement: "HTTP/2 flow-control overflow; HTTP/2 isn't enabled. Awaiting nginx 1.30.7 image."
+    expired_at: 2026-12-09
+  - id: CVE-2026-123633
+    statement: "Worker use-after-free in an optional module; not reachable from outside the cluster. Awaiting nginx 1.30.7 image."
+    expired_at: 2026-12-09
