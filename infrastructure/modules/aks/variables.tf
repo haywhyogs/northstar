@@ -49,10 +49,21 @@ variable "kubernetes_version" {
   default     = null
 }
 
+variable "container_insights_enabled" {
+  description = "Turn on Container insights (pod logs, node and pod metrics to Log Analytics). Needs log_analytics_workspace_id."
+  type        = bool
+  default     = false
+}
+
 variable "log_analytics_workspace_id" {
-  description = "Set to send container logs and metrics to Log Analytics (Container insights). null = off."
+  description = "The Log Analytics workspace Container insights sends to. Required when container_insights_enabled = true."
   type        = string
   default     = null
+
+  validation {
+    condition     = !var.container_insights_enabled || var.log_analytics_workspace_id != null
+    error_message = "Set log_analytics_workspace_id when container_insights_enabled = true."
+  }
 }
 
 variable "tags" {
