@@ -3,3 +3,9 @@ variable "operator_ip" {
   type        = string
   default     = null
 }
+
+variable "alert_email" {
+  description = "Where alerts are emailed (the on-call person). Set it in terraform.tfvars, which is gitignored."
+  type        = string
+  sensitive   = true # personal data: keep it out of plan output and logs
+}
