@@ -40,12 +40,20 @@ kubectl delete job "${app}-migrate" -n "${namespace}" --ignore-not-found
 kubectl apply -k "${overlay}"
 
 echo "== Waiting for the database migration"
-if ! kubectl wait --for=condition=complete "job/${app}-migrate" -n "${namespace}" --timeout=10m; then
-  # Show WHY: the newest migration pod's last log lines, and the Job's events.
+# 9 minutes: shorter than the Job's 10-minute deadline, so its pod still exists when we collect evidence below
+# (at the deadline Kubernetes deletes the pod, and its logs and events go with it).
+if ! kubectl wait --for=condition=complete "job/${app}-migrate" -n "${namespace}" --timeout=9m; then
+  # Show WHY: the newest migration pod's status, its events (e.g. Pending: Insufficient cpu) and last log lines.
   newest="$(kubectl get pods -n "${namespace}" -l "app.kubernetes.io/name=${app}-migrate" \
     --sort-by=.metadata.creationTimestamp -o name | tail -1)"
-  echo "== Migration failed. Last lines from ${newest}:"
-  kubectl logs -n "${namespace}" "${newest}" --tail=20 || true
+  if [[ -z "${newest}" ]]; then
+    echo "== Migration failed and no migration pod is left to inspect."
+  else
+    echo "== Migration failed. Status, events and last log lines of ${newest}:"
+    kubectl get -n "${namespace}" "${newest}" -o wide || true
+    kubectl describe -n "${namespace}" "${newest}" | sed -n '/^Events:/,$p' || true
+    kubectl logs -n "${namespace}" "${newest}" --tail=20 || true
+  fi
   kubectl describe job "${app}-migrate" -n "${namespace}" | sed -n '/^Events:/,$p'
   exit 1
 fi
