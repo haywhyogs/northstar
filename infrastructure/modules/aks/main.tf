@@ -58,7 +58,7 @@ resource "azurerm_kubernetes_cluster" "this" {
   }
 
   dynamic "oms_agent" {
-    for_each = var.log_analytics_workspace_id == null ? [] : [1]
+    for_each = var.container_insights_enabled ? [1] : []
     content {
       log_analytics_workspace_id      = var.log_analytics_workspace_id
       msi_auth_for_monitoring_enabled = true
@@ -73,7 +73,9 @@ resource "azurerm_kubernetes_cluster" "this" {
 # data collection rule (DCR) linked to the cluster. The portal and CLI create these for you; Terraform doesn't.
 # Based on Microsoft's Terraform template for Container insights (Microsoft Learn: "Enable monitoring for AKS").
 locals {
-  container_insights = var.log_analytics_workspace_id != null
+  # A plain true/false that Terraform knows while planning. Testing the workspace ID instead fails on a fresh build:
+  # the workspace doesn't exist yet, so its ID is "known after apply" and `count` can't be decided (v1.2.0 bug).
+  container_insights = var.container_insights_enabled
 
   # Cost-optimised: no legacy ContainerLog table (ContainerLogV2 replaces it), and samples every 5 minutes.
   container_insights_streams = [

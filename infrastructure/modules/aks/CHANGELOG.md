@@ -1,5 +1,11 @@
 # aks module: changelog
 
+## v1.3.0
+- Fix: v1.2.0 failed to plan on a fresh build ("Invalid count argument"), because whether to create the data collection
+  rule depended on the workspace ID, which isn't known until the workspace is created.
+- New `container_insights_enabled` (true/false, default false) switches Container insights on.
+  **Callers that set `log_analytics_workspace_id` must now also set `container_insights_enabled = true`.**
+
 ## v1.2.0
 - Container insights now actually collects data: adds the data collection rule (DCR) and its association to the
   cluster when `log_analytics_workspace_id` is set. Without them the agent ran but sent nothing.
