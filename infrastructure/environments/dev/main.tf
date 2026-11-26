@@ -96,7 +96,7 @@ module "database" {
 }
 
 module "aks" {
-  source = "git::https://github.com/haywhyogs/northstar.git//infrastructure/modules/aks?ref=modules/aks/v1.2.0"
+  source = "git::https://github.com/haywhyogs/northstar.git//infrastructure/modules/aks?ref=modules/aks/v1.3.0"
 
   name                = local.name
   resource_group_name = azurerm_resource_group.this.name
@@ -106,6 +106,7 @@ module "aks" {
   vm_size             = "Standard_D2as_v7"                             # stated explicitly: each environment shows its size
   admin_object_ids    = [data.azurerm_client_config.current.object_id] # production: an Entra ID group
   # Container insights: send pod logs, node and pod metrics to the shared workspace (capped by its daily quota).
+  container_insights_enabled = true
   log_analytics_workspace_id = module.monitoring.log_analytics_workspace_id
   tags                       = local.tags
 }
