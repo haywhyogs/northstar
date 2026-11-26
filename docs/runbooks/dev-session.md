@@ -19,8 +19,8 @@ az aks get-credentials -g rg-northstar-dev -n aks-northstar-dev --overwrite-exis
 kubelogin convert-kubeconfig -l azurecli
 
 # 3. Workload setup for each slice: namespace, database user, JWT signing key (safe to re-run)
-../../scripts/workload-setup.sh payments dev
-../../scripts/workload-setup.sh payments staging
+~/Desktop/Northstar/infrastructure/scripts/workload-setup.sh payments dev
+~/Desktop/Northstar/infrastructure/scripts/workload-setup.sh payments staging
 
 # 4. Deploy: normally the pipeline does this on every merge to main (re-run its latest run in GitHub).
 #    By hand: build both images in ACR from the merged commit, then deploy.

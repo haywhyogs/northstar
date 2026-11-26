@@ -4,9 +4,10 @@
 #   2. Adds the slice's identity to its database's user list (CREATE USER ... FROM EXTERNAL PROVIDER).
 #   3. Stores a random JWT signing key in the slice's Key Vault, if none exists yet.
 #
-# Run from the platform folder (infrastructure/environments/dev), while operator_ip is set and kubectl is connected:
-#   ../../scripts/workload-setup.sh payments dev
-#   ../../scripts/workload-setup.sh payments staging
+# Run from anywhere (it finds the platform folder itself), while operator_ip is set and kubectl is connected:
+#   ~/Desktop/Northstar/infrastructure/scripts/workload-setup.sh payments dev
+#   ~/Desktop/Northstar/infrastructure/scripts/workload-setup.sh payments staging
+# PLATFORM picks the Terraform folder to read (default dev), like deploy-workload.sh.
 # Needs: az (logged in as the SQL Entra admin), terraform, jq, kubectl, openssl, go-sqlcmd (`brew install sqlcmd`).
 # Secrets are never printed or written to disk.
 set -euo pipefail
@@ -14,6 +15,9 @@ set -euo pipefail
 app="${1:?usage: workload-setup.sh <app> <env>   e.g. payments dev}"
 env="${2:?usage: workload-setup.sh <app> <env>   e.g. payments dev}"
 namespace="${app}-${env}"
+
+# Read Terraform outputs from the platform folder, wherever this script is called from.
+cd "$(dirname "$0")/../environments/${PLATFORM:-dev}"
 
 # go-sqlcmd (supports Entra sign-in). The older mssql-tools18 sqlcmd may come first on PATH, so use Homebrew's path.
 sqlcmd="$(brew --prefix sqlcmd 2>/dev/null)/bin/sqlcmd"
