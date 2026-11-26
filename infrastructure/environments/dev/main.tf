@@ -103,8 +103,11 @@ module "aks" {
   location            = local.location
   subnet_id           = module.networking.aks_subnet_id
   acr_id              = module.registry.id
-  vm_size             = "Standard_D2as_v7"                             # stated explicitly: each environment shows its size
-  admin_object_ids    = [data.azurerm_client_config.current.object_id] # production: an Entra ID group
+  vm_size             = "Standard_D2as_v7" # stated explicitly: each environment shows its size
+  # Two nodes: AKS system pods + Container insights agents reserve ~1.65 of the first node's 1.9 usable CPUs, which left
+  # no room for both payments slices (2026-11-26: migration pod Pending, "Insufficient cpu"). Also survives one node failing.
+  node_count       = 2
+  admin_object_ids = [data.azurerm_client_config.current.object_id] # production: an Entra ID group
   # Container insights: send pod logs, node and pod metrics to the shared workspace (capped by its daily quota).
   container_insights_enabled = true
   log_analytics_workspace_id = module.monitoring.log_analytics_workspace_id
